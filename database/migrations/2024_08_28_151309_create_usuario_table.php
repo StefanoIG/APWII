@@ -14,6 +14,14 @@ return new class extends Migration
         Schema::create('usuario', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
+            $table->string('nombre');
+            $table->string('apellido');
+            $table->string('telefono');
+            $table->string('cedula')->unique();
+            $table->string('correo_electronico')->unique();
+            $table->string('contrasena');
+            $table->string('rol' default 'empleado');
+
         });
     }
 
