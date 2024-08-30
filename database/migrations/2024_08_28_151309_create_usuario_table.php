@@ -11,17 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('usuario', function (Blueprint $table) {
+        Schema::create('usuarios', function (Blueprint $table) {  // El nombre de la tabla en plural es una convención
             $table->id();
-            $table->timestamps();
             $table->string('nombre');
             $table->string('apellido');
             $table->string('telefono');
             $table->string('cedula')->unique();
             $table->string('correo_electronico')->unique();
-            $table->string('contrasena');
-            $table->string('rol' default 'empleado');
-
+            $table->string('password');
+            $table->enum('rol', ['empleado', 'admin'])->default('empleado');  // El rol por defecto es empleado
+            $table->timestamps();
         });
     }
 
@@ -30,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('usuario');
+        Schema::dropIfExists('usuarios');
     }
 };
