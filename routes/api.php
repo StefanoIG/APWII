@@ -5,14 +5,16 @@ use App\Http\Controllers\LoginController;
 use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\EtiquetaController;
 use App\Http\Controllers\ProveedorController;
+use App\Http\Controllers\ProductoController;
 
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
 Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para el registro de usuarios
 Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
 Route::put('/usuarios/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar usuario
 
-    
-    
+
+
+
 Route::middleware('auth:api')->group(function () {
     Route::get('/etiquetas', [EtiquetaController::class, 'index']);
     Route::get('/etiquetas/{id}', [EtiquetaController::class, 'show']);
@@ -21,4 +23,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/proveedores', [ProveedorController::class, 'index']);
     Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
     Route::post('/proveedor', [ProveedorController::class, 'store']);
+    Route::get('/productos', [ProductoController::class, 'index']);
+    Route::get('/productos/{id}', [ProductoController::class, 'show']);
+    Route::post('/productos', [ProductoController::class, 'store']);
 });
