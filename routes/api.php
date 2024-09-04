@@ -8,6 +8,7 @@ use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\LoteController;
 use App\Http\Controllers\ComprobanteController;
+use App\Http\Controllers\RetornoController;
 
 
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
@@ -39,3 +40,6 @@ Route::post('/comprobantes', [ComprobanteController::class, 'store']);
 Route::get('/productos', [ProductoController::class, 'index']);
 Route::get('/productos/{id}', [ProductoController::class, 'show']);
 Route::post('/productos', [ProductoController::class, 'store']);
+Route::get('/retornos', [RetornoController::class, 'index']);
+Route::get('/retornos/{id}', [RetornoController::class, 'show']);
+Route::post('/retornos', [RetornoController::class, 'store']);
