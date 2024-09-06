@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('lote', function (Blueprint $table) {
-            $table->id(); // Llave primaria automática como 'id'
-            $table->unsignedBigInteger('producto_id'); // Relación con Producto
-            $table->unsignedBigInteger('proveedor_id'); // Relación con Proveedor
+            $table->id('id_lote'); // Llave primaria automática como 'id_lote'
+            $table->unsignedBigInteger('id_producto'); // Relación con Producto
+            $table->unsignedBigInteger('id_proveedor'); // Relación con Proveedor
             $table->string('codigo_lote');
             $table->date('fecha_fabricacion')->nullable();
             $table->date('fecha_caducidad')->nullable();
@@ -24,8 +24,8 @@ return new class extends Migration
             $table->timestamps();
 
             // Claves foráneas
-            $table->foreign('producto_id')->references('id_producto')->on('producto')->onDelete('cascade');
-            $table->foreign('proveedor_id')->references('id')->on('proveedor')->onDelete('cascade');
+            $table->foreign('id_producto')->references('id_producto')->on('producto')->onDelete('cascade');
+            $table->foreign('id_proveedor')->references('id_proveedor')->on('proveedor')->onDelete('cascade');
         });
     }
 
