@@ -12,8 +12,8 @@ return new class extends Migration
     
         public function up()
     {
-        Schema::create('etiquetas', function (Blueprint $table) {
-            $table->id();  // id primary key
+        Schema::create('etiqueta', function (Blueprint $table) {
+            $table->id('id_etiqueta');  // id primary key
             $table->string('nombre');
             $table->string('color_hex');
             $table->text('descripcion')->nullable();
