@@ -35,7 +35,7 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
 2. **Clonar el Repositorio**: Clona el repositorio o haz un fork:
 
     ```bash
-    git clone https://github.com/tu_usuario/tu_repositorio.git
+    git clone https://github.com/StefanoIG/APWII/tree/main
     ```
 
     O realiza un fork en [GitHub](https://github.com/StefanoIG/APWII/tree/main) y clónalo.
