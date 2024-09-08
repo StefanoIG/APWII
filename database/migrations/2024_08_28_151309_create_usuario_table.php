@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('cedula')->unique();
             $table->string('correo_electronico')->unique();
             $table->string('password');
-            $table->enum('rol', ['empleado', 'owner','admin'])->default('empleado');  // El rol por defecto es empleado
+            $table->enum('rol', ['empleado','demo', 'owner','admin'])->default('empleado');  // El rol por defecto es empleado
 
             //laves fk
             $table->unsignedBigInteger('id_sitio')->nullable(); // Relación opcional
