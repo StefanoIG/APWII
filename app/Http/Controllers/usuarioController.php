@@ -17,10 +17,10 @@ use App\Mail\RequestDemoMail;
 use App\Models\Demo;
 use App\Mail\DemoRejectedMail;
 use Illuminate\Support\Facades\Mail;
-
+use Illuminate\Support\Facades\Log;
 
 class UsuarioController extends Controller
-{ 
+{
 
     /**
      * Mostrar la lista de usuarios.
@@ -44,24 +44,28 @@ class UsuarioController extends Controller
     /**
      * Crear un nuevo usuario.
      */
-    public function register(Request $request)
-    {
-        // Validación de datos
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'required|string|max:255',
-            'apellido' => 'required|string|max:255',
-            'telefono' => 'required|string|max:20',
-            'cedula' => 'required|string|max:10|unique:usuarios,cedula',
-            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
-            'password' => 'required|string|min:6',
-            'rol' => 'in:empleado,admin,demo,owner',
-            'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio', // Validar el sitio si el rol es empleado
-        ]);
+    
+public function register(Request $request)
+{
+    // Validación de datos
+    $validator = Validator::make($request->all(), [
+        'nombre' => 'required|string|max:255',
+        'apellido' => 'required|string|max:255',
+        'telefono' => 'required|string|max:20',
+        'cedula' => 'required|string|max:10|unique:usuarios,cedula',
+        'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+        'password' => 'required|string|min:6',
+        'rol' => 'required|in:empleado,admin,demo,owner', // Asegúrate de que 'rol' sea requerido
+        'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio', // Validar el sitio si el rol es empleado
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
 
+    // Uso de transacciones para asegurar consistencia
+    DB::beginTransaction();
+    try {
         // Creación del usuario
         $usuario = Usuario::create([
             'nombre' => $request->nombre,
@@ -69,15 +73,17 @@ class UsuarioController extends Controller
             'telefono' => $request->telefono,
             'cedula' => $request->cedula,
             'correo_electronico' => $request->correo_electronico,
-            'password' => $request->password,
-            'rol' => $request->rol ?? 'empleado',  // Rol por defecto
+            'password' => bcrypt($request->password), // Asegúrate de encriptar la contraseña
+            'rol' => $request->rol,
         ]);
 
         // Si el usuario autenticado es un owner y el nuevo usuario es un empleado, asignar el empleado
-        if (Auth::user()->rol === 'owner' && $usuario->rol === 'empleado') {
+        if (Auth::check() && Auth::user()->rol === 'owner' && $usuario->rol === 'empleado') {
             if ($request->has('sitio_id')) {
                 $usuario->owners()->attach(Auth::id(), ['sitio_id' => $request->sitio_id]);
             } else {
+                // El sitio es requerido para empleados si el usuario autenticado es un owner
+                DB::rollBack();
                 return response()->json(['errors' => ['sitio_id' => 'El campo sitio_id es requerido para empleados']], 422);
             }
         }
@@ -87,12 +93,19 @@ class UsuarioController extends Controller
             Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
         } catch (\Exception $e) {
             // Deshacer la creación del usuario en caso de error al enviar el correo
-            $usuario->delete();
+            DB::rollBack();
             return response()->json(['errors' => 'Hubo un error al enviar el correo de bienvenida. Por favor, inténtelo de nuevo.'], 500);
         }
 
+        DB::commit();
         return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error al crear usuario: ' . $e->getMessage());
+        return response()->json(['errors' => 'Hubo un error al crear el usuario. Por favor, inténtelo de nuevo.'], 500);
     }
+}
+
 
     /**
      * Editar la información del usuario.
@@ -264,6 +277,8 @@ class UsuarioController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
+            //log con los errores
+
         }
     }
 
@@ -285,7 +300,7 @@ class UsuarioController extends Controller
 
 
         // Limitar la cantidad de demos activas
-        $cantidadMaximaDemos = 5; 
+        $cantidadMaximaDemos = 5;
         if ($demoCount >= $cantidadMaximaDemos) {
             return response()->json(['message' => 'No se pueden aprobar más demos.'], 400);
         }
@@ -317,7 +332,7 @@ class UsuarioController extends Controller
                 'telefono' => $telefonoDemo,
                 'cedula' => $cedulaDemo,
                 'correo_electronico' => $demoRequest->email,
-                'password' => Hash::make($passwordPlano),
+                'password' => $passwordPlano,
                 'rol' => 'demo',
             ]);
 
@@ -341,7 +356,7 @@ class UsuarioController extends Controller
 
 
 
-    
+
 
 
     //Negar demo
@@ -398,7 +413,7 @@ class UsuarioController extends Controller
         if (!$authUser) {
             return response()->json(['errors' => 'No estás autenticado.'], 401);
         }
-    
+
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|string|max:255',
@@ -410,41 +425,41 @@ class UsuarioController extends Controller
             'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
             'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
         ]);
-    
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-    
+
         // Obtener los datos validados
         $validatedData = $validator->validated();
-    
+
         // Construir la consulta con los filtros opcionales
         $query = Usuario::query();
-    
+
         if (isset($validatedData['nombre'])) {
             $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
         }
-    
+
         if (isset($validatedData['apellido'])) {
             $query->where('apellido', 'like', '%' . $validatedData['apellido'] . '%');
         }
-    
+
         if (isset($validatedData['telefono'])) {
             $query->where('telefono', 'like', '%' . $validatedData['telefono'] . '%');
         }
-    
+
         if (isset($validatedData['cedula'])) {
             $query->where('cedula', 'like', '%' . $validatedData['cedula'] . '%');
         }
-    
+
         if (isset($validatedData['correo_electronico'])) {
             $query->where('correo_electronico', 'like', '%' . $validatedData['correo_electronico'] . '%');
         }
-    
+
         if (isset($validatedData['rol'])) {
             $query->where('rol', $validatedData['rol']);
         }
-    
+
         // Filtrar por deleted_at
         if (isset($validatedData['deleted_at'])) {
             if ($validatedData['deleted_at']) {
@@ -453,7 +468,7 @@ class UsuarioController extends Controller
                 $query->withTrashed(); // Todos los usuarios, incluidos los eliminados
             }
         }
-    
+
         // Limitar la información basada en el rol del usuario autenticado
         if ($authUser->rol === 'empleado') {
             return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
@@ -462,14 +477,13 @@ class UsuarioController extends Controller
                 $q->where('owner_id', $authUser->id);
             });
         }
-    
+
         // Obtener el número de resultados por página, por defecto 15
         $perPage = $validatedData['per_page'] ?? 15;
-    
+
         // Obtener los resultados paginados
         $usuarios = $query->paginate($perPage);
-    
+
         return response()->json($usuarios);
     }
-
 }

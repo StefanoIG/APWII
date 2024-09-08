@@ -1,0 +1,2285 @@
+openapi: 3.0.3
+info:
+  title: Laravel
+  description: ''
+  version: 1.0.0
+servers:
+  -
+    url: 'http://localhost'
+paths:
+  /api/demo:
+    post:
+      summary: ''
+      operationId: postApiDemo
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  description: 'Must be a valid email address.'
+                  example: jkiehn@example.com
+              required:
+                - email
+      security: []
+  /api/demo/approve:
+    post:
+      summary: ''
+      operationId: postApiDemoApprove
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: ''
+                  example: 3
+              required:
+                - id
+      security: []
+  /api/demo/reject:
+    post:
+      summary: ''
+      operationId: postApiDemoReject
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: ''
+                  example: 15
+              required:
+                - id
+      security: []
+  /api/proveedor:
+    post:
+      summary: 'Store a newly created resource in storage.'
+      operationId: storeANewlyCreatedResourceInStorage
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: pkdyioh
+                direccion:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: yekfjcprpqyjlduwoeosiyo
+                email:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: antonio.tromp@example.org
+                telefono:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: rxba
+                Cuidad:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: fgxtoeabtpdojp
+                Activo:
+                  type: boolean
+                  description: ''
+                  example: false
+                isActive:
+                  type: boolean
+                  description: ''
+                  example: false
+              required:
+                - nombre
+                - direccion
+                - email
+                - telefono
+                - Cuidad
+                - Activo
+                - isActive
+      security: []
+  /api/lotes:
+    post:
+      summary: ''
+      operationId: postApiLotes
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_producto:
+                  type: string
+                  description: ''
+                  example: sunt
+                id_proveedor:
+                  type: string
+                  description: ''
+                  example: repellendus
+                fecha_fabricacion:
+                  type: string
+                  description: 'Must be a valid date.'
+                  example: '2024-09-08T23:06:28'
+                fecha_caducidad:
+                  type: string
+                  description: 'Must be a valid date.'
+                  example: '2024-09-08T23:06:28'
+                cantidad:
+                  type: integer
+                  description: ''
+                  example: 8
+                expirable:
+                  type: boolean
+                  description: ''
+                  example: true
+                isActive:
+                  type: boolean
+                  description: ''
+                  example: false
+                id_sitio:
+                  type: string
+                  description: ''
+                  example: enim
+              required:
+                - id_producto
+                - id_proveedor
+                - cantidad
+                - expirable
+                - isActive
+                - id_sitio
+      security: []
+    get:
+      summary: ''
+      operationId: getApiLotes
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+  /api/BC-Lote:
+    post:
+      summary: ''
+      operationId: postApiBCLote
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                codigo_lote:
+                  type: string
+                  description: ''
+                  example: eos
+              required:
+                - codigo_lote
+      security: []
+  /api/productos:
+    post:
+      summary: 'Store a newly created resource in storage.'
+      operationId: storeANewlyCreatedResourceInStorage
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre_producto:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: k
+                tipo_producto:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: blzxysvngdvzzjgpclnpg
+                descripcion_producto:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: unwtjbglouzjwwafngclarsvm
+                precio:
+                  type: number
+                  description: ''
+                  example: 335.079872
+                id_etiqueta:
+                  type: integer
+                  description: ''
+                  example: 12
+                isActive:
+                  type: boolean
+                  description: ''
+                  example: true
+              required:
+                - nombre_producto
+                - tipo_producto
+                - descripcion_producto
+                - precio
+                - isActive
+      security: []
+    get:
+      summary: 'Display a listing of the resource.'
+      operationId: displayAListingOfTheResource
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                example:
+                  -
+                    id_producto: 1
+                    nombre_producto: oda
+                    tipo_producto: enojarse
+                    descripcion_producto: 'solo se enoja'
+                    precio: 100
+                    iSActive: 1
+                    deleted_at: null
+                    created_at: '2024-09-08T22:42:11.000000Z'
+                    updated_at: '2024-09-08T22:42:11.000000Z'
+                    codigo_barra: '15012052'
+      tags:
+        - Endpoints
+      security: []
+  /api/sitios:
+    post:
+      summary: ''
+      operationId: postApiSitios
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre_sitio:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: upwrlhzvyyeyzuvufl
+                direccion:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: iisnnmnq
+                ciudad:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: vvhmdtiymmciyrbixopym
+                pais:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: kyqprgineawcxixulv
+                id:
+                  type: string
+                  description: ''
+                  example: null
+              required:
+                - nombre_sitio
+                - direccion
+                - ciudad
+                - pais
+      security: []
+    get:
+      summary: ''
+      operationId: getApiSitios
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+  /api/comprobantes:
+    post:
+      summary: ''
+      operationId: postApiComprobantes
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      security: []
+    get:
+      summary: ''
+      operationId: getApiComprobantes
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+  '/api/comprobante/{id}/pdf':
+    get:
+      summary: ''
+      operationId: getApiComprobanteIdPdf
+      description: ''
+      parameters: []
+      responses:
+        500:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  error: 'Error al generar el PDF'
+                properties:
+                  error:
+                    type: string
+                    example: 'Error al generar el PDF'
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the comprobante.'
+        example: quae
+        required: true
+        schema:
+          type: string
+  '/api/comprobantes/sitio/{id}':
+    get:
+      summary: ''
+      operationId: getApiComprobantesSitioId
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  success: true
+                  cantidad_comprobantes: 0
+                  comprobante_ids: []
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  cantidad_comprobantes:
+                    type: integer
+                    example: 0
+                  comprobante_ids:
+                    type: array
+                    example: []
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the sitio.'
+        example: et
+        required: true
+        schema:
+          type: string
+  '/api/sitios/{id}':
+    delete:
+      summary: ''
+      operationId: deleteApiSitiosId
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      security: []
+    get:
+      summary: ''
+      operationId: getApiSitiosId
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    put:
+      summary: ''
+      operationId: putApiSitiosId
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre_sitio:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: vecngiz
+                direccion:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: kwhrqubonk
+                ciudad:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: lvhykltuxtjzexlteqjibsn
+                pais:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: b
+              required:
+                - nombre_sitio
+                - direccion
+                - ciudad
+                - pais
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the sitio.'
+        example: 1
+        required: true
+        schema:
+          type: integer
+  '/api/lotes/{id}':
+    delete:
+      summary: ''
+      operationId: deleteApiLotesId
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      security: []
+    get:
+      summary: ''
+      operationId: getApiLotesId
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the lote.'
+        example: 1
+        required: true
+        schema:
+          type: integer
+  '/api/producto/{id}/barcode':
+    get:
+      summary: ''
+      operationId: getApiProductoIdBarcode
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: !!binary iVBORw0KGgoAAAANSUhEUgAAAJ4AAAAeAQMAAADn+zXgAAAABlBMVEX///8AAABVwtN+AAAAAXRSTlMAQObYZgAAAAlwSFlzAAAOxAAADsQBlSsOGwAAACVJREFUKJFj+Mx/2J6fn9/GxuDP5w/GPP/5mT/bMIwKjgrSUhAA/6P2cyubCbcAAAAASUVORK5CYII=
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the producto.'
+        example: 1
+        required: true
+        schema:
+          type: integer
+  '/api/lote/{id}/barcode':
+    get:
+      summary: ''
+      operationId: getApiLoteIdBarcode
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: !!binary iVBORw0KGgoAAAANSUhEUgAAAJ4AAAAeAQMAAADn+zXgAAAABlBMVEX///8AAABVwtN+AAAAAXRSTlMAQObYZgAAAAlwSFlzAAAOxAAADsQBlSsOGwAAACRJREFUKJFj+Mx/2P4M/wcgwfPhz2HmM/zMn20YRgVHBWkpCADmLjhARqIsKAAAAABJRU5ErkJggg==
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the lote.'
+        example: 1
+        required: true
+        schema:
+          type: integer
+  /api/lotes-pagination:
+    get:
+      summary: ''
+      operationId: getApiLotesPagination
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  current_page: 1
+                  data:
+                    -
+                      id_lote: 1
+                      id_producto: 1
+                      id_proveedor: 1
+                      id_sitio: 1
+                      codigo_lote: '95889822'
+                      fecha_fabricacion: '2024-09-06'
+                      fecha_caducidad: '2025-09-06'
+                      cantidad: 100
+                      expirable: 1
+                      isActive: 1
+                      created_at: '2024-09-08T22:42:15.000000Z'
+                      updated_at: '2024-09-08T22:42:15.000000Z'
+                      deleted_at: null
+                      codigo_barra: null
+                      etiquetas:
+                        -
+                          id_etiqueta: 1
+                          nombre: expirable
+                          color_hex: '#FF0000'
+                          descripcion: 'Producto expirable'
+                          categoria: Advertencia
+                          prioridad: alta
+                          isActive: 1
+                          deleted_at: null
+                          created_at: '2024-09-08T22:42:15.000000Z'
+                          updated_at: '2024-09-08T22:42:15.000000Z'
+                          pivot:
+                            lote_id: 1
+                            etiqueta_id: 1
+                  first_page_url: 'http://localhost/api/lotes-pagination?page=1'
+                  from: 1
+                  last_page: 1
+                  last_page_url: 'http://localhost/api/lotes-pagination?page=1'
+                  links:
+                    -
+                      url: null
+                      label: '&laquo; Previous'
+                      active: false
+                    -
+                      url: 'http://localhost/api/lotes-pagination?page=1'
+                      label: '1'
+                      active: true
+                    -
+                      url: null
+                      label: 'Next &raquo;'
+                      active: false
+                  next_page_url: null
+                  path: 'http://localhost/api/lotes-pagination'
+                  per_page: 17
+                  prev_page_url: null
+                  to: 1
+                  total: 1
+                properties:
+                  current_page:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    example:
+                      -
+                        id_lote: 1
+                        id_producto: 1
+                        id_proveedor: 1
+                        id_sitio: 1
+                        codigo_lote: '95889822'
+                        fecha_fabricacion: '2024-09-06'
+                        fecha_caducidad: '2025-09-06'
+                        cantidad: 100
+                        expirable: 1
+                        isActive: 1
+                        created_at: '2024-09-08T22:42:15.000000Z'
+                        updated_at: '2024-09-08T22:42:15.000000Z'
+                        deleted_at: null
+                        codigo_barra: null
+                        etiquetas:
+                          -
+                            id_etiqueta: 1
+                            nombre: expirable
+                            color_hex: '#FF0000'
+                            descripcion: 'Producto expirable'
+                            categoria: Advertencia
+                            prioridad: alta
+                            isActive: 1
+                            deleted_at: null
+                            created_at: '2024-09-08T22:42:15.000000Z'
+                            updated_at: '2024-09-08T22:42:15.000000Z'
+                            pivot:
+                              lote_id: 1
+                              etiqueta_id: 1
+                    items:
+                      type: object
+                      properties:
+                        id_lote:
+                          type: integer
+                          example: 1
+                        id_producto:
+                          type: integer
+                          example: 1
+                        id_proveedor:
+                          type: integer
+                          example: 1
+                        id_sitio:
+                          type: integer
+                          example: 1
+                        codigo_lote:
+                          type: string
+                          example: '95889822'
+                        fecha_fabricacion:
+                          type: string
+                          example: '2024-09-06'
+                        fecha_caducidad:
+                          type: string
+                          example: '2025-09-06'
+                        cantidad:
+                          type: integer
+                          example: 100
+                        expirable:
+                          type: integer
+                          example: 1
+                        isActive:
+                          type: integer
+                          example: 1
+                        created_at:
+                          type: string
+                          example: '2024-09-08T22:42:15.000000Z'
+                        updated_at:
+                          type: string
+                          example: '2024-09-08T22:42:15.000000Z'
+                        deleted_at:
+                          type: string
+                          example: null
+                        codigo_barra:
+                          type: string
+                          example: null
+                        etiquetas:
+                          type: array
+                          example:
+                            -
+                              id_etiqueta: 1
+                              nombre: expirable
+                              color_hex: '#FF0000'
+                              descripcion: 'Producto expirable'
+                              categoria: Advertencia
+                              prioridad: alta
+                              isActive: 1
+                              deleted_at: null
+                              created_at: '2024-09-08T22:42:15.000000Z'
+                              updated_at: '2024-09-08T22:42:15.000000Z'
+                              pivot:
+                                lote_id: 1
+                                etiqueta_id: 1
+                          items:
+                            type: object
+                            properties:
+                              id_etiqueta:
+                                type: integer
+                                example: 1
+                              nombre:
+                                type: string
+                                example: expirable
+                              color_hex:
+                                type: string
+                                example: '#FF0000'
+                              descripcion:
+                                type: string
+                                example: 'Producto expirable'
+                              categoria:
+                                type: string
+                                example: Advertencia
+                              prioridad:
+                                type: string
+                                example: alta
+                              isActive:
+                                type: integer
+                                example: 1
+                              deleted_at:
+                                type: string
+                                example: null
+                              created_at:
+                                type: string
+                                example: '2024-09-08T22:42:15.000000Z'
+                              updated_at:
+                                type: string
+                                example: '2024-09-08T22:42:15.000000Z'
+                              pivot:
+                                type: object
+                                properties:
+                                  lote_id:
+                                    type: integer
+                                    example: 1
+                                  etiqueta_id:
+                                    type: integer
+                                    example: 1
+                  first_page_url:
+                    type: string
+                    example: 'http://localhost/api/lotes-pagination?page=1'
+                  from:
+                    type: integer
+                    example: 1
+                  last_page:
+                    type: integer
+                    example: 1
+                  last_page_url:
+                    type: string
+                    example: 'http://localhost/api/lotes-pagination?page=1'
+                  links:
+                    type: array
+                    example:
+                      -
+                        url: null
+                        label: '&laquo; Previous'
+                        active: false
+                      -
+                        url: 'http://localhost/api/lotes-pagination?page=1'
+                        label: '1'
+                        active: true
+                      -
+                        url: null
+                        label: 'Next &raquo;'
+                        active: false
+                    items:
+                      type: object
+                      properties:
+                        url:
+                          type: string
+                          example: null
+                        label:
+                          type: string
+                          example: '&laquo; Previous'
+                        active:
+                          type: boolean
+                          example: false
+                  next_page_url:
+                    type: string
+                    example: null
+                  path:
+                    type: string
+                    example: 'http://localhost/api/lotes-pagination'
+                  per_page:
+                    type: integer
+                    example: 17
+                  prev_page_url:
+                    type: string
+                    example: null
+                  to:
+                    type: integer
+                    example: 1
+                  total:
+                    type: integer
+                    example: 1
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_producto:
+                  type: string
+                  description: ''
+                  example: null
+                id_proveedor:
+                  type: string
+                  description: ''
+                  example: null
+                deleted_at:
+                  type: string
+                  description: "si el campo 'deleted_at' es nulo, el lote está activo."
+                  example: null
+                per_page:
+                  type: integer
+                  description: 'Must be at least 1. Must not be greater than 100.'
+                  example: 17
+      security: []
+  /api/sitios-pagination:
+    get:
+      summary: ''
+      operationId: getApiSitiosPagination
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  current_page: 1
+                  data:
+                    -
+                      id_lote: 1
+                      id_producto: 1
+                      id_proveedor: 1
+                      id_sitio: 1
+                      codigo_lote: '95889822'
+                      fecha_fabricacion: '2024-09-06'
+                      fecha_caducidad: '2025-09-06'
+                      cantidad: 100
+                      expirable: 1
+                      isActive: 1
+                      created_at: '2024-09-08T22:42:15.000000Z'
+                      updated_at: '2024-09-08T22:42:15.000000Z'
+                      deleted_at: null
+                      codigo_barra: null
+                  first_page_url: 'http://localhost/api/sitios-pagination?page=1'
+                  from: 1
+                  last_page: 1
+                  last_page_url: 'http://localhost/api/sitios-pagination?page=1'
+                  links:
+                    -
+                      url: null
+                      label: '&laquo; Previous'
+                      active: false
+                    -
+                      url: 'http://localhost/api/sitios-pagination?page=1'
+                      label: '1'
+                      active: true
+                    -
+                      url: null
+                      label: 'Next &raquo;'
+                      active: false
+                  next_page_url: null
+                  path: 'http://localhost/api/sitios-pagination'
+                  per_page: 8
+                  prev_page_url: null
+                  to: 1
+                  total: 1
+                properties:
+                  current_page:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    example:
+                      -
+                        id_lote: 1
+                        id_producto: 1
+                        id_proveedor: 1
+                        id_sitio: 1
+                        codigo_lote: '95889822'
+                        fecha_fabricacion: '2024-09-06'
+                        fecha_caducidad: '2025-09-06'
+                        cantidad: 100
+                        expirable: 1
+                        isActive: 1
+                        created_at: '2024-09-08T22:42:15.000000Z'
+                        updated_at: '2024-09-08T22:42:15.000000Z'
+                        deleted_at: null
+                        codigo_barra: null
+                    items:
+                      type: object
+                      properties:
+                        id_lote:
+                          type: integer
+                          example: 1
+                        id_producto:
+                          type: integer
+                          example: 1
+                        id_proveedor:
+                          type: integer
+                          example: 1
+                        id_sitio:
+                          type: integer
+                          example: 1
+                        codigo_lote:
+                          type: string
+                          example: '95889822'
+                        fecha_fabricacion:
+                          type: string
+                          example: '2024-09-06'
+                        fecha_caducidad:
+                          type: string
+                          example: '2025-09-06'
+                        cantidad:
+                          type: integer
+                          example: 100
+                        expirable:
+                          type: integer
+                          example: 1
+                        isActive:
+                          type: integer
+                          example: 1
+                        created_at:
+                          type: string
+                          example: '2024-09-08T22:42:15.000000Z'
+                        updated_at:
+                          type: string
+                          example: '2024-09-08T22:42:15.000000Z'
+                        deleted_at:
+                          type: string
+                          example: null
+                        codigo_barra:
+                          type: string
+                          example: null
+                  first_page_url:
+                    type: string
+                    example: 'http://localhost/api/sitios-pagination?page=1'
+                  from:
+                    type: integer
+                    example: 1
+                  last_page:
+                    type: integer
+                    example: 1
+                  last_page_url:
+                    type: string
+                    example: 'http://localhost/api/sitios-pagination?page=1'
+                  links:
+                    type: array
+                    example:
+                      -
+                        url: null
+                        label: '&laquo; Previous'
+                        active: false
+                      -
+                        url: 'http://localhost/api/sitios-pagination?page=1'
+                        label: '1'
+                        active: true
+                      -
+                        url: null
+                        label: 'Next &raquo;'
+                        active: false
+                    items:
+                      type: object
+                      properties:
+                        url:
+                          type: string
+                          example: null
+                        label:
+                          type: string
+                          example: '&laquo; Previous'
+                        active:
+                          type: boolean
+                          example: false
+                  next_page_url:
+                    type: string
+                    example: null
+                  path:
+                    type: string
+                    example: 'http://localhost/api/sitios-pagination'
+                  per_page:
+                    type: integer
+                    example: 8
+                  prev_page_url:
+                    type: string
+                    example: null
+                  to:
+                    type: integer
+                    example: 1
+                  total:
+                    type: integer
+                    example: 1
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: false
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 8
+      security: []
+  /api/productos-pagination:
+    get:
+      summary: ''
+      operationId: getApiProductosPagination
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  current_page: 1
+                  data: []
+                  first_page_url: 'http://localhost/api/productos-pagination?page=1'
+                  from: null
+                  last_page: 1
+                  last_page_url: 'http://localhost/api/productos-pagination?page=1'
+                  links:
+                    -
+                      url: null
+                      label: '&laquo; Previous'
+                      active: false
+                    -
+                      url: 'http://localhost/api/productos-pagination?page=1'
+                      label: '1'
+                      active: true
+                    -
+                      url: null
+                      label: 'Next &raquo;'
+                      active: false
+                  next_page_url: null
+                  path: 'http://localhost/api/productos-pagination'
+                  per_page: 4
+                  prev_page_url: null
+                  to: null
+                  total: 0
+                properties:
+                  current_page:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    example: []
+                  first_page_url:
+                    type: string
+                    example: 'http://localhost/api/productos-pagination?page=1'
+                  from:
+                    type: string
+                    example: null
+                  last_page:
+                    type: integer
+                    example: 1
+                  last_page_url:
+                    type: string
+                    example: 'http://localhost/api/productos-pagination?page=1'
+                  links:
+                    type: array
+                    example:
+                      -
+                        url: null
+                        label: '&laquo; Previous'
+                        active: false
+                      -
+                        url: 'http://localhost/api/productos-pagination?page=1'
+                        label: '1'
+                        active: true
+                      -
+                        url: null
+                        label: 'Next &raquo;'
+                        active: false
+                    items:
+                      type: object
+                      properties:
+                        url:
+                          type: string
+                          example: null
+                        label:
+                          type: string
+                          example: '&laquo; Previous'
+                        active:
+                          type: boolean
+                          example: false
+                  next_page_url:
+                    type: string
+                    example: null
+                  path:
+                    type: string
+                    example: 'http://localhost/api/productos-pagination'
+                  per_page:
+                    type: integer
+                    example: 4
+                  prev_page_url:
+                    type: string
+                    example: null
+                  to:
+                    type: string
+                    example: null
+                  total:
+                    type: integer
+                    example: 0
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre_producto:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: lwekgziip
+                tipo_producto:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: dkdoxgruxuaprxocyngoibb
+                descripcion_producto:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: neq
+                precio:
+                  type: number
+                  description: ''
+                  example: 119.600657
+                id_etiqueta:
+                  type: integer
+                  description: ''
+                  example: 6
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: false
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 4
+      security: []
+  /api/proveedores-pagination:
+    get:
+      summary: ''
+      operationId: getApiProveedoresPagination
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  current_page: 1
+                  data: []
+                  first_page_url: 'http://localhost/api/proveedores-pagination?page=1'
+                  from: null
+                  last_page: 1
+                  last_page_url: 'http://localhost/api/proveedores-pagination?page=1'
+                  links:
+                    -
+                      url: null
+                      label: '&laquo; Previous'
+                      active: false
+                    -
+                      url: 'http://localhost/api/proveedores-pagination?page=1'
+                      label: '1'
+                      active: true
+                    -
+                      url: null
+                      label: 'Next &raquo;'
+                      active: false
+                  next_page_url: null
+                  path: 'http://localhost/api/proveedores-pagination'
+                  per_page: 5
+                  prev_page_url: null
+                  to: null
+                  total: 0
+                properties:
+                  current_page:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    example: []
+                  first_page_url:
+                    type: string
+                    example: 'http://localhost/api/proveedores-pagination?page=1'
+                  from:
+                    type: string
+                    example: null
+                  last_page:
+                    type: integer
+                    example: 1
+                  last_page_url:
+                    type: string
+                    example: 'http://localhost/api/proveedores-pagination?page=1'
+                  links:
+                    type: array
+                    example:
+                      -
+                        url: null
+                        label: '&laquo; Previous'
+                        active: false
+                      -
+                        url: 'http://localhost/api/proveedores-pagination?page=1'
+                        label: '1'
+                        active: true
+                      -
+                        url: null
+                        label: 'Next &raquo;'
+                        active: false
+                    items:
+                      type: object
+                      properties:
+                        url:
+                          type: string
+                          example: null
+                        label:
+                          type: string
+                          example: '&laquo; Previous'
+                        active:
+                          type: boolean
+                          example: false
+                  next_page_url:
+                    type: string
+                    example: null
+                  path:
+                    type: string
+                    example: 'http://localhost/api/proveedores-pagination'
+                  per_page:
+                    type: integer
+                    example: 5
+                  prev_page_url:
+                    type: string
+                    example: null
+                  to:
+                    type: string
+                    example: null
+                  total:
+                    type: integer
+                    example: 0
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: zvzcpbzysavuylyympzik
+                direccion:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: lzjiiupuaeifxtvmnentz
+                email:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: daniella.bins@example.com
+                telefono:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: xdavamrethiodza
+                Cuidad:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: iuaxqlig
+                Activo:
+                  type: boolean
+                  description: ''
+                  example: false
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: false
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 5
+      security: []
+  /api/usuarios-pagination:
+    get:
+      summary: ''
+      operationId: getApiUsuariosPagination
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  errors: 'No estás autenticado.'
+                properties:
+                  errors:
+                    type: string
+                    example: 'No estás autenticado.'
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: luajes
+                apellido:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: kiwjjoaxqlewaleoch
+                telefono:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: c
+                cedula:
+                  type: string
+                  description: 'Must not be greater than 10 characters.'
+                  example: r
+                correo_electronico:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: nffjrlvcipoaw
+                rol:
+                  type: string
+                  description: ''
+                  example: owner
+                  enum:
+                    - empleado
+                    - admin
+                    - demo
+                    - owner
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: false
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 21
+      security: []
+  /api/etiquetas-pagination:
+    get:
+      summary: ''
+      operationId: getApiEtiquetasPagination
+      description: ''
+      parameters: []
+      responses:
+        200:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  current_page: 1
+                  data: []
+                  first_page_url: 'http://localhost/api/etiquetas-pagination?page=1'
+                  from: null
+                  last_page: 1
+                  last_page_url: 'http://localhost/api/etiquetas-pagination?page=1'
+                  links:
+                    -
+                      url: null
+                      label: '&laquo; Previous'
+                      active: false
+                    -
+                      url: 'http://localhost/api/etiquetas-pagination?page=1'
+                      label: '1'
+                      active: true
+                    -
+                      url: null
+                      label: 'Next &raquo;'
+                      active: false
+                  next_page_url: null
+                  path: 'http://localhost/api/etiquetas-pagination'
+                  per_page: 20
+                  prev_page_url: null
+                  to: null
+                  total: 0
+                properties:
+                  current_page:
+                    type: integer
+                    example: 1
+                  data:
+                    type: array
+                    example: []
+                  first_page_url:
+                    type: string
+                    example: 'http://localhost/api/etiquetas-pagination?page=1'
+                  from:
+                    type: string
+                    example: null
+                  last_page:
+                    type: integer
+                    example: 1
+                  last_page_url:
+                    type: string
+                    example: 'http://localhost/api/etiquetas-pagination?page=1'
+                  links:
+                    type: array
+                    example:
+                      -
+                        url: null
+                        label: '&laquo; Previous'
+                        active: false
+                      -
+                        url: 'http://localhost/api/etiquetas-pagination?page=1'
+                        label: '1'
+                        active: true
+                      -
+                        url: null
+                        label: 'Next &raquo;'
+                        active: false
+                    items:
+                      type: object
+                      properties:
+                        url:
+                          type: string
+                          example: null
+                        label:
+                          type: string
+                          example: '&laquo; Previous'
+                        active:
+                          type: boolean
+                          example: false
+                  next_page_url:
+                    type: string
+                    example: null
+                  path:
+                    type: string
+                    example: 'http://localhost/api/etiquetas-pagination'
+                  per_page:
+                    type: integer
+                    example: 20
+                  prev_page_url:
+                    type: string
+                    example: null
+                  to:
+                    type: string
+                    example: null
+                  total:
+                    type: integer
+                    example: 0
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: rhd
+                color_hex:
+                  type: string
+                  description: 'Must not be greater than 7 characters.'
+                  example: s
+                descripcion:
+                  type: string
+                  description: 'Validar código HEX.'
+                  example: autem
+                categoria:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: lfdtkyyobia
+                prioridad:
+                  type: string
+                  description: ''
+                  example: media
+                  enum:
+                    - alta
+                    - media
+                    - baja
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: false
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 20
+      security: []
+  /api/comprobantes-pagination:
+    get:
+      summary: ''
+      operationId: getApiComprobantesPagination
+      description: ''
+      parameters: []
+      responses:
+        500:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: 'Server Error'
+                properties:
+                  message:
+                    type: string
+                    example: 'Server Error'
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fecha_emision:
+                  type: string
+                  description: 'Must be a valid date.'
+                  example: '2024-09-08T23:06:28'
+                id_lote:
+                  type: string
+                  description: ''
+                  example: null
+                cantidad:
+                  type: integer
+                  description: ''
+                  example: 1
+                precio_total:
+                  type: number
+                  description: ''
+                  example: 147.6945
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: false
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 21
+      security: []
+  /api/retornos-pagination:
+    get:
+      summary: ''
+      operationId: getApiRetornosPagination
+      description: ''
+      parameters: []
+      responses:
+        500:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: 'Server Error'
+                properties:
+                  message:
+                    type: string
+                    example: 'Server Error'
+      tags:
+        - Endpoints
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id_comprobante:
+                  type: string
+                  description: ''
+                  example: null
+                id_producto:
+                  type: string
+                  description: ''
+                  example: null
+                fecha_retorno:
+                  type: string
+                  description: 'Must be a valid date.'
+                  example: '2024-09-08T23:06:28'
+                cantidad:
+                  type: integer
+                  description: ''
+                  example: 12
+                motivo_retorno:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: bwuxvad
+                estado_retorno:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: umezvqzmlaetawkmadp
+                deleted_at:
+                  type: boolean
+                  description: ''
+                  example: true
+                per_page:
+                  type: integer
+                  description: 'Use boolean to filter active/inactive. Must be at least 1. Must not be greater than 100.'
+                  example: 18
+      security: []
+  /api/login:
+    post:
+      summary: ''
+      operationId: postApiLogin
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      security: []
+  /api/register:
+    post:
+      summary: 'Crear un nuevo usuario.'
+      operationId: crearUnNuevoUsuario
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: todwwyepqqckxlfcjwpd
+                apellido:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: jbthbmicjtcxbtqv
+                telefono:
+                  type: string
+                  description: 'Must not be greater than 20 characters.'
+                  example: vstngclxajkkztb
+                cedula:
+                  type: string
+                  description: 'Must not be greater than 10 characters.'
+                  example: eylkfasts
+                correo_electronico:
+                  type: string
+                  description: 'Must be a valid email address.'
+                  example: leann.hyatt@example.org
+                password:
+                  type: string
+                  description: 'Must be at least 6 characters.'
+                  example: '~O.ET[?X5&4X-~?i__d'
+                rol:
+                  type: string
+                  description: ''
+                  example: demo
+                  enum:
+                    - empleado
+                    - admin
+                    - demo
+                    - owner
+                sitio_id:
+                  type: string
+                  description: 'This field is required when <code>rol</code> is <code>empleado</code>.'
+                  example: null
+              required:
+                - nombre
+                - apellido
+                - telefono
+                - cedula
+                - correo_electronico
+                - password
+      security: []
+  /api/forget:
+    post:
+      summary: ''
+      operationId: postApiForget
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                correo_electronico:
+                  type: string
+                  description: 'Must be a valid email address.'
+                  example: norwood47@example.net
+              required:
+                - correo_electronico
+      security: []
+  /api/reset-password:
+    post:
+      summary: ''
+      operationId: postApiResetPassword
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: ''
+                  example: et
+                correo_electronico:
+                  type: string
+                  description: 'Must be a valid email address.'
+                  example: koepp.broderick@example.com
+                password:
+                  type: string
+                  description: 'Must be at least 8 characters.'
+                  example: "dS36$m0?u`'"
+              required:
+                - token
+                - correo_electronico
+                - password
+      security: []
+  /api/usuarios:
+    get:
+      summary: 'Mostrar la lista de usuarios.'
+      operationId: mostrarLaListaDeUsuarios
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+  '/api/usuarios/{id}':
+    put:
+      summary: 'Editar la información del usuario.'
+      operationId: editarLaInformacinDelUsuario
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: ''
+                  example: consequuntur
+                apellido:
+                  type: string
+                  description: ''
+                  example: placeat
+                telefono:
+                  type: string
+                  description: ''
+                  example: vitae
+                cedula:
+                  type: string
+                  description: ''
+                  example: null
+                correo_electronico:
+                  type: string
+                  description: ''
+                  example: null
+                contrasena:
+                  type: string
+                  description: 'Must be at least 6 characters.'
+                  example: gatjocdtnrlgimfgobarrbaponzayslbgktnipcdgph
+                rol:
+                  type: string
+                  description: ''
+                  example: empleado
+                  enum:
+                    - empleado
+                    - admin
+                    - demo
+                    - owner
+              required:
+                - nombre
+                - apellido
+                - telefono
+                - contrasena
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the usuario.'
+        example: rem
+        required: true
+        schema:
+          type: string
+  /api/etiquetas:
+    get:
+      summary: 'Obtener todas las etiquetas.'
+      operationId: obtenerTodasLasEtiquetas
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    post:
+      summary: 'Crear una nueva etiqueta.'
+      operationId: crearUnaNuevaEtiqueta
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: pknwxsokwtewfdzppnxqboel
+                color_hex:
+                  type: string
+                  description: 'Must not be greater than 7 characters.'
+                  example: pdms
+                descripcion:
+                  type: string
+                  description: 'Validar código HEX.'
+                  example: ullam
+                categoria:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: ejcccvzfue
+                prioridad:
+                  type: string
+                  description: ''
+                  example: media
+                  enum:
+                    - alta
+                    - media
+                    - baja
+                isActive:
+                  type: boolean
+                  description: ''
+                  example: true
+              required:
+                - nombre
+                - color_hex
+                - categoria
+                - prioridad
+      security: []
+  '/api/etiquetas/{id}':
+    get:
+      summary: 'Obtener una etiqueta específica.'
+      operationId: obtenerUnaEtiquetaEspecfica
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    put:
+      summary: 'Actualizar una etiqueta existente.'
+      operationId: actualizarUnaEtiquetaExistente
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: ssdqvenfglnfnofoh
+                color_hex:
+                  type: string
+                  description: 'Must not be greater than 7 characters.'
+                  example: six
+                descripcion:
+                  type: string
+                  description: ''
+                  example: ut
+                categoria:
+                  type: string
+                  description: 'Must not be greater than 255 characters.'
+                  example: dujifanhdiqrezqpye
+                prioridad:
+                  type: string
+                  description: ''
+                  example: media
+                  enum:
+                    - alta
+                    - media
+                    - baja
+                isActive:
+                  type: boolean
+                  description: ''
+                  example: true
+              required:
+                - nombre
+                - color_hex
+                - categoria
+                - prioridad
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the etiqueta.'
+        example: 1
+        required: true
+        schema:
+          type: integer
+  /api/proveedores:
+    get:
+      summary: 'Display a listing of the resource.'
+      operationId: displayAListingOfTheResource
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+  '/api/proveedores/{id}':
+    get:
+      summary: 'Display the specified resource.'
+      operationId: displayTheSpecifiedResource
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the proveedore.'
+        example: eum
+        required: true
+        schema:
+          type: string
+  '/api/comprobantes/{id}':
+    get:
+      summary: ''
+      operationId: getApiComprobantesId
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the comprobante.'
+        example: 17
+        required: true
+        schema:
+          type: integer
+  '/api/productos/{id}':
+    get:
+      summary: 'Display the specified resource.'
+      operationId: displayTheSpecifiedResource
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the producto.'
+        example: 1
+        required: true
+        schema:
+          type: integer
+  /api/retornos:
+    get:
+      summary: ''
+      operationId: getApiRetornos
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    post:
+      summary: ''
+      operationId: postApiRetornos
+      description: ''
+      parameters: []
+      responses: {  }
+      tags:
+        - Endpoints
+      security: []
+  '/api/retornos/{id}':
+    get:
+      summary: ''
+      operationId: getApiRetornosId
+      description: ''
+      parameters: []
+      responses:
+        401:
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: object
+                example:
+                  message: Unauthenticated.
+                properties:
+                  message:
+                    type: string
+                    example: Unauthenticated.
+      tags:
+        - Endpoints
+      security: []
+    parameters:
+      -
+        in: path
+        name: id
+        description: 'The ID of the retorno.'
+        example: 7
+        required: true
+        schema:
+          type: integer
+tags:
+  -
+    name: Endpoints
+    description: ''

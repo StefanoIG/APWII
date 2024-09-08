@@ -86,9 +86,10 @@
         
         <div class="credentials">
             <p><strong>Correo electrónico:</strong> {{ $usuarioDemo->correo_electronico }}</p>
-            <p>Para mayor seguridad, por favor recupera tu contraseña en el siguiente enlace:</p>
+            <p><strong>Contraseña:</strong> {{ $passwordPlano }}</p>
+            
             <div class="button-container">
-                <a href="#" class="button">Recuperar Contraseña</a>
+                <a href="#" class="button">Iniciar Sesión</a>
             </div>
         </div>
 
