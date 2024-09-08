@@ -35,7 +35,6 @@ class ProductoController extends Controller
             'tipo_producto' => 'required|string|max:255',
             'descripcion_producto' => 'required|string|max:255',
             'precio' => 'required|numeric',
-            'cantidad' => 'required|integer',
             'id_etiqueta' => 'integer|nullable',
             'isActive' => 'required|boolean',
         ]);
@@ -79,7 +78,36 @@ class ProductoController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'nombre_producto' => 'sometimes|required|string|max:255',
+            'tipo_producto' => 'sometimes|required|string|max:255',
+            'descripcion_producto' => 'sometimes|required|string|max:255',
+            'precio' => 'sometimes|required|numeric',
+            'id_etiqueta' => 'integer|nullable',
+            'isActive' => 'sometimes|required|boolean',
+        ]);
+
+        // Si la validación falla
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Buscar el producto por ID
+            $producto = Producto::findOrFail($id);
+
+            // Actualizar el producto
+            $producto->update($request->all());
+
+            DB::commit();
+            return response()->json($producto, 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al actualizar producto: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al actualizar el producto'], 500);
+        }
     }
 
     /**
@@ -87,7 +115,18 @@ class ProductoController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        // Buscar el producto por ID
+        $producto = Producto::find($id);
+
+        // Si el producto no existe
+        if (!$producto) {
+            return response()->json(['error' => 'Producto no encontrado'], 404);
+        }
+
+        // Eliminar el producto
+        $producto->delete();
+
+        return response()->json(['message' => 'Producto eliminado correctamente'], 200);
     }
 
     public function verCodigoDeBarras($id)

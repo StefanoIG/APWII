@@ -7,8 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf; // Asegúrate de importar DomPDF
-use App\Mail\WelcomeMail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB; // Importar la clase DB
+use App\Models\Lote; // Importar el modelo Lote
 
 class ComprobanteController extends Controller
 {
@@ -27,20 +28,36 @@ class ComprobanteController extends Controller
     // Crear un nuevo comprobante
     public function store(Request $request)
     {
+        DB::beginTransaction();
+    
         try {
             $validatedData = $request->validate([
                 'fecha_emision' => 'required|date',
-                'id_lote' => 'required|exists:lote,id_lote', // Cambiado a 'lote'
-                'usuario_id' => 'required|exists:usuarios,id', // Asegúrate de que la tabla y columna sean correctas
-                'id_producto' => 'required|exists:producto,id_producto', // Cambiado a 'producto'
+                'id_lote' => 'required|exists:lote,id_lote',
+                'usuario_id' => 'required|exists:usuarios,id',
+                'id_producto' => 'required|exists:producto,id_producto',
                 'cantidad' => 'required|integer',
                 'precio_total' => 'required|numeric'
             ]);
-
+    
+            // Verificar que el lote tenga suficientes productos
+            $lote = Lote::findOrFail($validatedData['id_lote']);
+            if ($lote->cantidad < $validatedData['cantidad']) {
+                return response()->json(['error' => 'El lote no tiene suficientes productos.'], 400);
+            }
+    
+            // Crear el comprobante
             $comprobante = Comprobante::create($validatedData);
-
+    
+            // Actualizar la cantidad de productos en el lote
+            $lote->cantidad -= $validatedData['cantidad'];
+            $lote->save();
+    
+            DB::commit();
+    
             return response()->json($comprobante, 201);
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Error al crear comprobante: ' . $e->getMessage());
             return response()->json(['error' => 'Error en el servidor', 'details' => $e->getMessage()], 500);
         }
@@ -104,11 +121,6 @@ class ComprobanteController extends Controller
         }
     }
     
-
-
-
-
-
     // Mostrar un comprobante específico
     public function show($id)
     {
@@ -120,9 +132,6 @@ class ComprobanteController extends Controller
 
         return response()->json($comprobante);
     }
-
-
-
-    
+   
 
 }

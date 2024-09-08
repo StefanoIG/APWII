@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('categoria');
             $table->enum('prioridad', ['alta', 'media', 'baja']);
             $table->boolean('isActive')->default(true);
+            $table->softDeletes();  // Agregar columna para soft deletes
             $table->timestamps();  // created_at, updated_at
         });
     }

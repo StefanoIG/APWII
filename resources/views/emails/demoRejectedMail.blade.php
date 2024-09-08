@@ -41,7 +41,7 @@
         <p>Gracias por tu interés en nuestro servicio.</p>
 
         <div class="footer">
-            <p>&copy; {{ date('Y') }} Tu Empresa. Todos los derechos reservados.</p>
+            <p>&copy; {{ date('Y') }} InventoryPro. Todos los derechos reservados.</p>
         </div>
     </div>
 </body>

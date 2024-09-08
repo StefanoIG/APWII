@@ -97,7 +97,7 @@
         <p>Gracias por probar nuestro servicio.</p>
 
         <div class="footer">
-            <p>&copy; {{ date('Y') }} InventoriPro. Todos los derechos reservados.</p>
+            <p>&copy; {{ date('Y') }} InventoryPro. Todos los derechos reservados.</p>
         </div>
     </div>
 </body>

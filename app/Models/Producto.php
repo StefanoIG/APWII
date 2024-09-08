@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Producto extends Model
 {
-    use HasFactory;
+    use SoftDeletes;
+    protected $dates = ['deleted_at'];
 
     // Tabla asociada al modelo
     protected $table = 'producto';
@@ -21,7 +23,6 @@ class Producto extends Model
         'tipo_producto',
         'descripcion_producto',
         'precio',
-        'cantidad',
         'id_etiqueta',
         'isActive'
     ];

@@ -43,7 +43,7 @@ class ProveedorController extends Controller
 
         //Si la validacion es correcta
         $proveedor = Proveedor::create($request->all());
-        return response()->json($proveedor, 201);
+        return response()->json(['message' => 'Proveedor Creado correctamente',$proveedor], 200);
     }
 
     /**
@@ -60,7 +60,26 @@ class ProveedorController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        //Validacion de los datos
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:255',
+            'direccion' => 'required|string|max:255',
+            'email' => 'required|string|max:255',
+            'telefono' => 'required|string|max:255',
+            'Cuidad' => 'required|string|max:255',
+            'Activo' => 'required|boolean',
+            'isActive' => 'required|boolean',
+        ]);
+
+        //Si la validacion falla
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 400);
+        }
+
+        //Si la validacion es correcta
+        $proveedor = Proveedor::find($id);
+        $proveedor->update($request->all());
+        return response()->json(['message' => 'Proveedor actualizado correctamente',$proveedor], 200);
     }
 
     /**
@@ -68,6 +87,9 @@ class ProveedorController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        //Eliminar un proveedor en base a la id que se envia
+        $proveedor = Proveedor::find($id);
+        $proveedor->delete();
+        return response()->json(['message' => 'Proveedor eliminado correctamente'], 200);
     }
 }

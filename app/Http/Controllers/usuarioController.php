@@ -125,6 +125,8 @@ class UsuarioController extends Controller
         return response()->json(['message' => 'Usuario actualizado exitosamente', 'usuario' => $usuario], 200);
     }
 
+
+    // recuperar contraseña
     public function recoveryPassword(Request $request)
     {
         // Validar que el email fue enviado en la solicitud
@@ -171,6 +173,7 @@ class UsuarioController extends Controller
         }
     }
 
+    // Resetear la contraseña
     public function resetPassword(Request $request)
     {
         // Validar que el token, email, y contraseñas fueron enviados en la solicitud
@@ -311,10 +314,6 @@ class UsuarioController extends Controller
     }
 
 
-
-
-
-
     //Negar demo
     public function rejectDemo(Request $request)
     {
@@ -343,5 +342,21 @@ class UsuarioController extends Controller
             DB::rollBack();
             return response()->json(['errors' => 'Hubo un error al rechazar la demo. Por favor, inténtelo de nuevo.'], 500);
         }
+    }
+
+    //Eliminar usuario
+    public function destroy($id)
+    {
+        // Find the user by ID
+        $usuario = Usuario::find($id);
+
+        if (!$usuario) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        // Soft delete the user
+        $usuario->delete();
+
+        return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
     }
 }

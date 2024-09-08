@@ -21,6 +21,7 @@ class CreateRetornoTable extends Migration
             $table->text('estado_retorno');
             $table->boolean('isActive')->default(true);
             $table->timestamps();
+            $table->softDeletes(); // Agregar columna para soft deletes
 
             // Definir claves foráneas dentro del closure
             $table->foreign('id_comprobante')->references('id_comprobante')->on('comprobante')->onDelete('cascade');

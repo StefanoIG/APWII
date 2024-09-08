@@ -20,7 +20,7 @@ class CreateComprobanteTable extends Migration
             $table->integer('precio_total');
             $table->boolean('isActive')->default(true);
             $table->timestamps();
-
+            $table->softDeletes(); // Agregar columna para soft deletes
             // Definir claves foráneas
             $table->foreign('id_lote')->references('id_lote')->on('lote')->onDelete('cascade');
             $table->foreign('usuario_id')->references('id')->on('usuarios')->onDelete('cascade');
