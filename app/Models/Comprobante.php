@@ -10,11 +10,13 @@ class Comprobante extends Model
     
     // Tabla asociada al modelo
     protected $table = 'comprobante';
+    protected $primaryKey = 'id_comprobante';
+
 
     // Atributos que se pueden asignar de manera masiva
     protected $fillable = [
         'fecha_emision',
-        'bodega',
+        'id_lote',
         'usuario_id',
         'id_producto',
         'cantidad',
@@ -33,4 +35,12 @@ class Comprobante extends Model
     {
         return $this->belongsTo(Producto::class, 'id_producto', 'id_producto');
     }
+    
+    // Relación con Lote
+    public function lote()
+    {
+        return $this->belongsTo(Lote::class, 'id_lote', 'id_lote');
+    }
+
+    //relacion con 
 }

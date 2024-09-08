@@ -9,6 +9,16 @@ use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\LoteController;
 use App\Http\Controllers\ComprobanteController;
 use App\Http\Controllers\RetornoController;
+use App\Http\Controllers\SitioController;
+
+Route::get('/sitios', [SitioController::class, 'index']);
+Route::get('/sitios/{id}', [SitioController::class, 'show']);
+Route::post('/sitios', [SitioController::class, 'store']);
+Route::put('/sitios/{id}', [SitioController::class, 'update']);
+Route::delete('/sitios/{id}', [SitioController::class, 'destroy']);
+Route::get('/comprobante/{id}/pdf', [ComprobanteController::class, 'generarPDF']);
+
+Route::get('/comprobantes/sitio/{id}', [ComprobanteController::class, 'obtenerComprobantesPorSitio']);
 
 
 Route::get('producto/{id}/barcode', [ProductoController::class, 'verCodigoDeBarras']);
