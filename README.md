@@ -1,5 +1,3 @@
-Claro, aquí tienes una versión mejorada del `README.md`:
-
 ```markdown
 <p align="center">
   <a href="https://laravel.com" target="_blank">
