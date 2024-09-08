@@ -115,9 +115,9 @@ La documentación del proyecto está disponible en `public/docs`. Fue generada c
 
 Este proyecto fue desarrollado por:
 
-- 🧑‍💻 Stefano Aguilar
-- 👩‍💻 Cristhian Ortiz
-- 👨‍💻 Julio Arias
+- 🧑‍💻 Stefano Aguilar (Desarrollador Principal)
+- 👩‍💻 Cristhian Ortiz (Dev)
+- 👨‍💻 Julio Arias     (Dev y Docs)
 
 Agradecemos sus contribuciones y esfuerzo en el desarrollo del sistema.
 
