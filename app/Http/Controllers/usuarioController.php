@@ -264,6 +264,8 @@ class UsuarioController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
+            //log con los errores
+            
         }
     }
 
@@ -317,7 +319,7 @@ class UsuarioController extends Controller
                 'telefono' => $telefonoDemo,
                 'cedula' => $cedulaDemo,
                 'correo_electronico' => $demoRequest->email,
-                'password' => Hash::make($passwordPlano),
+                'password' => $passwordPlano,
                 'rol' => 'demo',
             ]);
 
