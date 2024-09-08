@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
 
 class Lote extends Model
 {
-    use HasFactory;
-
-    // Tabla asociada al modelo
+    use SoftDeletes;
+    protected $dates = ['deleted_at'];
+    
     protected $table = 'lote';
 
     protected $primaryKey = 'id_lote';
@@ -24,7 +25,7 @@ class Lote extends Model
         'fecha_fabricacion',
         'fecha_caducidad',
         'cantidad',
-        'espirable',
+        'expirable',
         'isActive'
     ];
 

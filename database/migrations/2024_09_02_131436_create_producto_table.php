@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('tipo_producto');
             $table->string('descripcion_producto');
             $table->decimal('precio');
-            $table->integer('cantidad');
             //foranea a id_etiqueta de la tabla etiqueta
             $table->unsignedBigInteger('id_etiqueta')->nullable();
             $table->foreign('id_etiqueta')->references('id_etiqueta')->on('etiqueta')->nullable();

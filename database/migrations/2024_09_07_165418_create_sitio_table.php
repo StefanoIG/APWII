@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('ciudad');
             $table->string('pais');
             $table->timestamps();
+            $table->softDeletes(); // Agregar columna para soft deletes
 
         });
     }

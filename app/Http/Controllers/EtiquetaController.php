@@ -13,7 +13,6 @@ class EtiquetaController extends Controller
      */
     public function index()
     {
-        $user = auth()->user();  // Esto asegura que el token sea válido
 
         $etiquetas = Etiqueta::all();
         return response()->json($etiquetas, 200);
@@ -24,7 +23,7 @@ class EtiquetaController extends Controller
      */
     public function store(Request $request)
     {
-        $user = auth()->user();  // Verificación del usuario autenticado
+       
 
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
@@ -49,7 +48,7 @@ class EtiquetaController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $user = auth()->user();  // Verificación del usuario autenticado
+       
 
         $etiqueta = Etiqueta::findOrFail($id);
 
@@ -72,9 +71,21 @@ class EtiquetaController extends Controller
      */
     public function show($id)
     {
-        $user = auth()->user();  // Verificación del usuario autenticado
-
         $etiqueta = Etiqueta::findOrFail($id);
         return response()->json($etiqueta, 200);
     }
+
+    /**
+     * Eliminar una etiqueta existente.
+     */
+    public function destroy($id)
+    {
+       
+
+        $etiqueta = Etiqueta::findOrFail($id);
+        $etiqueta->delete();
+
+        return response()->json(['message' => 'Etiqueta eliminada exitosamente'], 200);
+    }
+
 }

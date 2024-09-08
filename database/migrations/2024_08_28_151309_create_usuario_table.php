@@ -20,8 +20,9 @@ return new class extends Migration
             $table->string('correo_electronico')->unique();
             $table->string('password');
             $table->enum('rol', ['empleado','demo', 'owner','admin'])->default('empleado');  // El rol por defecto es empleado
+            $table->softDeletes(); // Agregar columna para soft deletes
 
-            //laves fk
+            //llaves fk
             $table->unsignedBigInteger('id_sitio')->nullable(); // Relación opcional
             $table->foreign('id_sitio')->references('id_sitio')->on('sitio')->onDelete('set null');
             $table->timestamps();

@@ -62,7 +62,7 @@ class SitioController extends Controller
         return response()->json(['message' => 'Sitio actualizado con éxito', 'sitio' => $sitio]);
     }
 
-    // Eliminar un sitio
+    // Eliminar un sitio (soft delete)
     public function destroy($id)
     {
         $sitio = Sitio::find($id);
@@ -71,8 +71,9 @@ class SitioController extends Controller
             return response()->json(['error' => 'Sitio no encontrado'], 404);
         }
 
+        // Realiza un soft delete
         $sitio->delete();
 
-        return response()->json(['message' => 'Sitio eliminado con éxito']);
+        return response()->json(['message' => 'Sitio eliminado con éxito'], 200);
     }
 }
