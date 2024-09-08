@@ -13,7 +13,6 @@ class EtiquetaController extends Controller
      */
     public function index()
     {
-        $user = auth()->user();  // Esto asegura que el token sea válido
 
         $etiquetas = Etiqueta::all();
         return response()->json($etiquetas, 200);
@@ -24,7 +23,7 @@ class EtiquetaController extends Controller
      */
     public function store(Request $request)
     {
-        $user = auth()->user();  // Verificación del usuario autenticado
+       
 
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
@@ -49,7 +48,7 @@ class EtiquetaController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $user = auth()->user();  // Verificación del usuario autenticado
+       
 
         $etiqueta = Etiqueta::findOrFail($id);
 
@@ -72,9 +71,81 @@ class EtiquetaController extends Controller
      */
     public function show($id)
     {
-        $user = auth()->user();  // Verificación del usuario autenticado
-
         $etiqueta = Etiqueta::findOrFail($id);
         return response()->json($etiqueta, 200);
+    }
+
+    /**
+     * Eliminar una etiqueta existente.
+     */
+    public function destroy($id)
+    {
+       
+
+        $etiqueta = Etiqueta::findOrFail($id);
+        $etiqueta->delete();
+
+        return response()->json(['message' => 'Etiqueta eliminada exitosamente'], 200);
+    }
+
+    public function paginatedIndex(Request $request)
+    {
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'sometimes|string|max:255',
+            'color_hex' => 'sometimes|string|max:7',  // Validar código HEX
+            'descripcion' => 'sometimes|string|nullable',
+            'categoria' => 'sometimes|string|max:255',
+            'prioridad' => 'sometimes|in:alta,media,baja',
+            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+
+        // Construir la consulta con los filtros opcionales
+        $query = Etiqueta::query();
+
+        if (isset($validatedData['nombre'])) {
+            $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
+        }
+
+        if (isset($validatedData['color_hex'])) {
+            $query->where('color_hex', 'like', '%' . $validatedData['color_hex'] . '%');
+        }
+
+        if (isset($validatedData['descripcion'])) {
+            $query->where('descripcion', 'like', '%' . $validatedData['descripcion'] . '%');
+        }
+
+        if (isset($validatedData['categoria'])) {
+            $query->where('categoria', 'like', '%' . $validatedData['categoria'] . '%');
+        }
+
+        if (isset($validatedData['prioridad'])) {
+            $query->where('prioridad', $validatedData['prioridad']);
+        }
+
+        // Filtrar por deleted_at
+        if (isset($validatedData['deleted_at'])) {
+            if ($validatedData['deleted_at']) {
+                $query->onlyTrashed(); // Solo etiquetas eliminadas
+            } else {
+                $query->withTrashed(); // Todas las etiquetas, incluidas las eliminadas
+            }
+        }
+
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+
+        // Obtener los resultados paginados
+        $etiquetas = $query->paginate($perPage);
+
+        return response()->json($etiquetas);
     }
 }

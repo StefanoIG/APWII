@@ -9,28 +9,26 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    
-        public function up()
+    public function up(): void
     {
         Schema::create('etiqueta', function (Blueprint $table) {
-            $table->id('id_etiqueta');  // id primary key
+            $table->id('id_etiqueta');
             $table->string('nombre');
             $table->string('color_hex');
             $table->text('descripcion')->nullable();
             $table->string('categoria');
             $table->enum('prioridad', ['alta', 'media', 'baja']);
             $table->boolean('isActive')->default(true);
-            $table->timestamps();  // created_at, updated_at
+            $table->softDeletes();
+            $table->timestamps();
         });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
-    public function down()
+    public function down(): void
     {
-        Schema::dropIfExists('etiquetas');
+        Schema::dropIfExists('etiqueta');
     }
 };

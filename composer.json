@@ -6,13 +6,16 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^3.0",
         "laravel/framework": "^11.9",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
+        "picqer/php-barcode-generator": "^2.4",
         "tymon/jwt-auth": "^2.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "knuckleswtf/scribe": "^4.37",
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.26",
         "mockery/mockery": "^1.6",
