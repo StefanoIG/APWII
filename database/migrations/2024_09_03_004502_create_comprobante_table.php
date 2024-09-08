@@ -3,7 +3,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateDevolucionTable extends Migration
+class CreateComprobanteTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,7 +13,7 @@ class CreateDevolucionTable extends Migration
         Schema::create('comprobante', function (Blueprint $table) {
             $table->id('id_comprobante'); // Llave primaria automática como 'id'
             $table->date('fecha_emision')->nullable();
-            $table->string('bodega');
+            $table->unsignedBigInteger('id_lote');// Clave foránea
             $table->unsignedBigInteger('usuario_id'); // Clave foránea
             $table->unsignedBigInteger('id_producto'); // Clave foránea
             $table->integer('cantidad');
@@ -22,6 +22,7 @@ class CreateDevolucionTable extends Migration
             $table->timestamps();
 
             // Definir claves foráneas
+            $table->foreign('id_lote')->references('id_lote')->on('lote')->onDelete('cascade');
             $table->foreign('usuario_id')->references('id')->on('usuarios')->onDelete('cascade');
             $table->foreign('id_producto')->references('id_producto')->on('producto')->onDelete('cascade');
         });

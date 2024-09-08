@@ -40,7 +40,8 @@ class LoteController extends Controller
             'fecha_caducidad' => 'nullable|date',
             'cantidad' => 'required|integer',
             'espirable' => 'required|boolean',
-            'isActive' => 'required|boolean'
+            'isActive' => 'required|boolean',
+            'id_sitio' => 'required|exists:sitio,id_sitio'
         ]);
     
         // Uso de transacciones para asegurar consistencia
@@ -55,7 +56,7 @@ class LoteController extends Controller
             $lote->cantidad = $validatedData['cantidad'];
             $lote->espirable = $validatedData['espirable'];
             $lote->isActive = $validatedData['isActive'];
-    
+            $lote->id_sitio=$validatedData['id_sitio'];
             // Generar código de barras aleatorio de longitud fija
             $codigoBarra = $this->generarCodigoDeBarras();
             $lote->codigo_lote = $codigoBarra;

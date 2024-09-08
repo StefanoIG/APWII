@@ -11,7 +11,7 @@ class Lote extends Model
 
     // Tabla asociada al modelo
     protected $table = 'lote';
-    
+
     protected $primaryKey = 'id_lote';
 
 
@@ -19,6 +19,7 @@ class Lote extends Model
     protected $fillable = [
         'producto_id',
         'proveedor_id',
+        'id_sitio',
         'codigo_lote',
         'fecha_fabricacion',
         'fecha_caducidad',
@@ -37,5 +38,10 @@ class Lote extends Model
     public function proveedor()
     {
         return $this->belongsTo(Proveedor::class, 'proveedor_id', 'id');
+    }
+    //relacion con sitio
+    public function sitio()
+    {
+        return $this->belongsTo(Sitio::class, 'id_sitio', 'id_sitio');
     }
 }
