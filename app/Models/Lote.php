@@ -11,6 +11,9 @@ class Lote extends Model
 
     // Tabla asociada al modelo
     protected $table = 'lote';
+    
+    protected $primaryKey = 'id_lote';
+
 
     // Atributos que se pueden asignar de manera masiva
     protected $fillable = [

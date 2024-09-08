@@ -8,6 +8,12 @@ use App\Http\Controllers\ProveedorController;
 use App\Http\Controllers\ProductoController;
 use App\Http\Controllers\LoteController;
 use App\Http\Controllers\ComprobanteController;
+use App\Http\Controllers\RetornoController;
+
+
+Route::get('producto/{id}/barcode', [ProductoController::class, 'verCodigoDeBarras']);
+Route::get('lote/{id}/barcode', [LoteController::class, 'verCodigoDeBarras']);
+
 
 
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
@@ -15,6 +21,7 @@ Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para 
 Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
 Route::put('/usuarios/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar usuario
 
+Route::post('/proveedor', [ProveedorController::class, 'store']);
 
 
 
@@ -25,12 +32,11 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/etiquetas/{id}', [EtiquetaController::class, 'update']);
     Route::get('/proveedores', [ProveedorController::class, 'index']);
     Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
-    Route::post('/proveedor', [ProveedorController::class, 'store']);
     //rutas de lotes
     Route::get('/lotes', [LoteController::class, 'index']);
     Route::get('/lotes/{id}', [LoteController::class, 'show']);
-    Route::post('/lotes', [LoteController::class, 'store']);
 });
+Route::post('/lotes', [LoteController::class, 'store']);
 
 
 Route::get('/comprobantes', [ComprobanteController::class, 'index']);  // Listar todos los comprobantes
@@ -39,3 +45,6 @@ Route::post('/comprobantes', [ComprobanteController::class, 'store']);
 Route::get('/productos', [ProductoController::class, 'index']);
 Route::get('/productos/{id}', [ProductoController::class, 'show']);
 Route::post('/productos', [ProductoController::class, 'store']);
+Route::get('/retornos', [RetornoController::class, 'index']);
+Route::get('/retornos/{id}', [RetornoController::class, 'show']);
+Route::post('/retornos', [RetornoController::class, 'store']);
