@@ -17,9 +17,13 @@ return new class extends Migration
             $table->string('direccion');
             $table->string('ciudad');
             $table->string('pais');
+            $table->unsignedBigInteger('created_by')->nullable(); // Agregar columna para el ID del usuario que creó el sitio y hacerla nulleable
+
             $table->timestamps();
             $table->softDeletes(); // Agregar columna para soft deletes
 
+            // Agregar la clave foránea
+            $table->foreign('created_by')->references('id')->on('usuarios')->onDelete('cascade');
         });
     }
 

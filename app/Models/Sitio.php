@@ -18,10 +18,14 @@ class Sitio extends Model
         'nombre_sitio',
         'direccion',
         'ciudad',
-        'pais'
+        'pais',
+        'created_by'
     ];
     
-
+    public function Usuario()
+    {
+        return $this->belongsTo('App\Models\Usuario', 'created_by');
+    }
     
 
 }

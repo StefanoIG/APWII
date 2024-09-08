@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\Mail;
 
 
 class UsuarioController extends Controller
+{ 
 
-{
     /**
      * Mostrar la lista de usuarios.
      */
@@ -55,9 +55,7 @@ class UsuarioController extends Controller
             'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
             'password' => 'required|string|min:6',
             'rol' => 'in:empleado,admin,demo,owner',
-            'demo',
-            'owner',
-            'admin',  // Validación del rol
+            'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio', // Validar el sitio si el rol es empleado
         ]);
 
         if ($validator->fails()) {
@@ -74,7 +72,25 @@ class UsuarioController extends Controller
             'password' => $request->password,
             'rol' => $request->rol ?? 'empleado',  // Rol por defecto
         ]);
-        Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
+
+        // Si el usuario autenticado es un owner y el nuevo usuario es un empleado, asignar el empleado
+        if (Auth::user()->rol === 'owner' && $usuario->rol === 'empleado') {
+            if ($request->has('sitio_id')) {
+                $usuario->owners()->attach(Auth::id(), ['sitio_id' => $request->sitio_id]);
+            } else {
+                return response()->json(['errors' => ['sitio_id' => 'El campo sitio_id es requerido para empleados']], 422);
+            }
+        }
+
+        // Enviar el correo electrónico solo si el usuario se crea correctamente
+        try {
+            Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
+        } catch (\Exception $e) {
+            // Deshacer la creación del usuario en caso de error al enviar el correo
+            $usuario->delete();
+            return response()->json(['errors' => 'Hubo un error al enviar el correo de bienvenida. Por favor, inténtelo de nuevo.'], 500);
+        }
+
         return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
     }
 
@@ -87,7 +103,7 @@ class UsuarioController extends Controller
         $usuario = Usuario::findOrFail($id);
 
         // Verificar permisos
-        if ($user->rol === 'empleado' && $user->id !== $usuario->id) {
+        if (($user->rol === 'empleado' || $user->rol === 'demo') && $user->id !== $usuario->id) {
             return response()->json(['error' => 'No tienes permisos para actualizar esta información'], 403);
         }
 
@@ -264,6 +280,16 @@ class UsuarioController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Contar la cantidad de demos activas
+        $demoCount = Demo::where('isActive', true)->count();
+
+
+        // Limitar la cantidad de demos activas
+        $cantidadMaximaDemos = 5; 
+        if ($demoCount >= $cantidadMaximaDemos) {
+            return response()->json(['message' => 'No se pueden aprobar más demos.'], 400);
+        }
+
         DB::beginTransaction();
 
         try {
@@ -314,6 +340,10 @@ class UsuarioController extends Controller
     }
 
 
+
+    
+
+
     //Negar demo
     public function rejectDemo(Request $request)
     {
@@ -359,4 +389,87 @@ class UsuarioController extends Controller
 
         return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
     }
+
+
+    public function paginatedIndex(Request $request)
+    {
+        // Verificar si el usuario está autenticado
+        $authUser = Auth::user();
+        if (!$authUser) {
+            return response()->json(['errors' => 'No estás autenticado.'], 401);
+        }
+    
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'sometimes|string|max:255',
+            'apellido' => 'sometimes|string|max:255',
+            'telefono' => 'sometimes|string|max:255',
+            'cedula' => 'sometimes|string|max:10',
+            'correo_electronico' => 'sometimes|string|max:255',
+            'rol' => 'sometimes|in:empleado,admin,demo,owner',
+            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+    
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+    
+        // Construir la consulta con los filtros opcionales
+        $query = Usuario::query();
+    
+        if (isset($validatedData['nombre'])) {
+            $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
+        }
+    
+        if (isset($validatedData['apellido'])) {
+            $query->where('apellido', 'like', '%' . $validatedData['apellido'] . '%');
+        }
+    
+        if (isset($validatedData['telefono'])) {
+            $query->where('telefono', 'like', '%' . $validatedData['telefono'] . '%');
+        }
+    
+        if (isset($validatedData['cedula'])) {
+            $query->where('cedula', 'like', '%' . $validatedData['cedula'] . '%');
+        }
+    
+        if (isset($validatedData['correo_electronico'])) {
+            $query->where('correo_electronico', 'like', '%' . $validatedData['correo_electronico'] . '%');
+        }
+    
+        if (isset($validatedData['rol'])) {
+            $query->where('rol', $validatedData['rol']);
+        }
+    
+        // Filtrar por deleted_at
+        if (isset($validatedData['deleted_at'])) {
+            if ($validatedData['deleted_at']) {
+                $query->onlyTrashed(); // Solo usuarios eliminados
+            } else {
+                $query->withTrashed(); // Todos los usuarios, incluidos los eliminados
+            }
+        }
+    
+        // Limitar la información basada en el rol del usuario autenticado
+        if ($authUser->rol === 'empleado') {
+            return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
+        } elseif ($authUser->rol === 'owner') {
+            $query->whereHas('owners', function ($q) use ($authUser) {
+                $q->where('owner_id', $authUser->id);
+            });
+        }
+    
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+    
+        // Obtener los resultados paginados
+        $usuarios = $query->paginate($perPage);
+    
+        return response()->json($usuarios);
+    }
+
 }

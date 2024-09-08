@@ -23,6 +23,7 @@ return new class extends Migration
             $table->boolean('expirable')->default(false);
             $table->boolean('isActive')->default(true);
             $table->timestamps();
+            $table->softDeletes();
 
             // Claves foráneas
             $table->foreign('id_producto')->references('id_producto')->on('producto')->onDelete('cascade');

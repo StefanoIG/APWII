@@ -36,7 +36,7 @@ class Usuario extends Authenticatable implements JWTSubject
     /**
      * Modificar el nombre del campo 'password' a 'password'.
      */
-    public function setpasswordAttribute($value) // Cambiamos a 'setpasswordAttribute'
+    public function setPasswordAttribute($value) // Cambiamos a 'setPasswordAttribute'
     {
         $this->attributes['password'] = bcrypt($value);  // Almacena la contraseña encriptada
     }
@@ -61,5 +61,16 @@ class Usuario extends Authenticatable implements JWTSubject
     {
         return $this->attributes['password'];
     }
-}
 
+    // Relación con los empleados
+    public function empleados()
+    {
+        return $this->belongsToMany(Usuario::class, 'owner_empleado', 'owner_id', 'empleado_id');
+    }
+
+    // Relación con los owners
+    public function owners()
+    {
+        return $this->belongsToMany(Usuario::class, 'owner_empleado', 'empleado_id', 'owner_id');
+    }
+}
