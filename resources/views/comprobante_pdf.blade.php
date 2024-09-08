@@ -121,7 +121,9 @@
         <div class="footer">
             <p>Salió de la bodega {{ $comprobante->lote->sitio->nombre_sitio }}, fue sacado por el empleado {{ $comprobante->usuario->nombre }}.</p>
             <br>
-            <p>Todos los derechos reservados | by InventoryPro</p>
+            <p>&copy; 2024 InventoryPro. Todos los derechos reservados.</p>
+            <br>
+            <p>by InventoryPro</p>
         </div>
     </div>
 </body>

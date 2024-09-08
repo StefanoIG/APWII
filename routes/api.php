@@ -11,6 +11,7 @@ use App\Http\Controllers\ComprobanteController;
 use App\Http\Controllers\RetornoController;
 use App\Http\Controllers\SitioController;
 
+
 Route::get('/sitios', [SitioController::class, 'index']);
 Route::get('/sitios/{id}', [SitioController::class, 'show']);
 Route::post('/sitios', [SitioController::class, 'store']);
@@ -28,6 +29,12 @@ Route::get('lote/{id}/barcode', [LoteController::class, 'verCodigoDeBarras']);
 
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
 Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para el registro de usuarios
+//recuperar contra
+Route::post('/forget', [UsuarioController::class, 'recoveryPassword']);
+
+Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
+
+
 Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
 Route::put('/usuarios/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar usuario
 
@@ -48,6 +55,7 @@ Route::middleware('auth:api')->group(function () {
 });
 Route::post('/lotes', [LoteController::class, 'store']);
 
+Route::get('/send-mail',[ComprobanteController::class, 'enviarCorreoBienvenida']);
 
 Route::get('/comprobantes', [ComprobanteController::class, 'index']);  // Listar todos los comprobantes
 Route::get('/comprobantes/{id}', [ComprobanteController::class, 'show']);  // Mostrar un comprobante específico

@@ -7,7 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Barryvdh\DomPDF\Facade\Pdf; // Asegúrate de importar DomPDF
-
+use App\Mail\WelcomeMail;
+use Illuminate\Support\Facades\Mail;
 
 class ComprobanteController extends Controller
 {
@@ -119,4 +120,9 @@ class ComprobanteController extends Controller
 
         return response()->json($comprobante);
     }
+
+
+
+    
+
 }
