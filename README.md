@@ -38,7 +38,7 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
     git clone https://github.com/tu_usuario/tu_repositorio.git
     ```
 
-    O realiza un fork en [GitHub](https://github.com/tu_usuario/tu_repositorio) y clónalo.
+    O realiza un fork en [GitHub](https://github.com/StefanoIG/APWII/tree/main) y clónalo.
 
 3. **Instalar Dependencias**: Navega a la carpeta del proyecto y ejecuta:
 
