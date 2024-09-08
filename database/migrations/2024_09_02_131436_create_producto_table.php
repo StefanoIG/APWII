@@ -17,10 +17,8 @@ return new class extends Migration
             $table->string('tipo_producto');
             $table->string('descripcion_producto');
             $table->decimal('precio');
-            //foranea a id_etiqueta de la tabla etiqueta
-            $table->unsignedBigInteger('id_etiqueta')->nullable();
-            $table->foreign('id_etiqueta')->references('id_etiqueta')->on('etiqueta')->nullable();
             $table->boolean('iSActive')->default(true);
+            $table->softDeletes();
             $table->timestamps();
         });
     }

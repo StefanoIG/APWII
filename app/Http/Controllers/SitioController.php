@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Sitio;
+use Illuminate\Support\Facades\Validator;
+use App\Models\Lote;
+use Illuminate\Support\Facades\Auth;
 
 class SitioController extends Controller
 {
@@ -26,19 +29,31 @@ class SitioController extends Controller
         return response()->json($sitio);
     }
 
-    // Crear un nuevo sitio
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
             'nombre_sitio' => 'required|string|max:255',
             'direccion' => 'required|string|max:255',
             'ciudad' => 'required|string|max:255',
             'pais' => 'required|string|max:255',
+            'id' => 'nulleable|exists:usuarios,id',
         ]);
 
-        $sitio = Sitio::create($validatedData);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
-        return response()->json(['message' => 'Sitio creado con éxito', 'sitio' => $sitio], 201);
+        // Crear el sitio con el campo created_by
+        $sitio = Sitio::create([
+            'nombre_sitio' => $request->nombre_sitio,
+            'direccion' => $request->direccion,
+            'ciudad' => $request->ciudad,
+            'pais' => $request->pais,
+            'created_by' => $request->id,
+        ]);
+
+        return response()->json(['message' => 'Sitio creado con éxito',$sitio], 201);
     }
 
     // Actualizar un sitio
@@ -75,5 +90,42 @@ class SitioController extends Controller
         $sitio->delete();
 
         return response()->json(['message' => 'Sitio eliminado con éxito'], 200);
+    }
+
+
+    public function paginatedIndex(Request $request)
+    {
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+    
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+    
+        // Construir la consulta con los filtros opcionales
+        $query = Lote::query();
+    
+        // Filtrar por deleted_at
+        if (isset($validatedData['deleted_at'])) {
+            if ($validatedData['deleted_at']) {
+                $query->onlyTrashed(); // Solo lotes eliminados
+            } else {
+                $query->withTrashed(); // Todos los lotes, incluidos los eliminados
+            }
+        }
+    
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+    
+        // Obtener los resultados paginados
+        $lotes = $query->paginate($perPage);
+    
+        return response()->json($lotes);
     }
 }

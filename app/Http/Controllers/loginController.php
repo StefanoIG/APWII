@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
 
-class LoginController extends Controller
+class loginController extends Controller
 {
     public function login(Request $request)
     {
@@ -19,7 +19,7 @@ class LoginController extends Controller
 
         try {
             // Intentamos autenticar al usuario
-            if (!$token = Auth::attempt($credentials)) {
+            if (!$token = Auth::attempt(['correo_electronico' => $credentials['correo_electronico'], 'password' => $credentials['password']])) {
                 // Si falla la autenticación, devolvemos un error 401
                 Log::warning('Credenciales inválidas para el correo: ' . $request->correo_electronico);
                 return response()->json(['error' => 'Credenciales inválidas'], 401);

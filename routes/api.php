@@ -26,8 +26,10 @@ Route::post('/sitios', [SitioController::class, 'store']);
 Route::post('/comprobantes', [ComprobanteController::class, 'store']);
 Route::get('/comprobante/{id}/pdf', [ComprobanteController::class, 'generarPDF']);
 Route::get('/comprobantes/sitio/{id}', [ComprobanteController::class, 'obtenerComprobantesPorSitio']);
+Route::get('/productos', [ProductoController::class, 'index']);
 
 Route::delete('/sitios/{id}', [SitioController::class, 'destroy']);
+Route::delete('/lotes/{id}', [LoteController::class, 'destroy']);
 
  //rutas barcodes
 Route::get('producto/{id}/barcode', [ProductoController::class, 'verCodigoDeBarras']);
@@ -35,6 +37,15 @@ Route::get('lote/{id}/barcode', [LoteController::class, 'verCodigoDeBarras']);
 
 
 
+//rutas de paginacion
+Route::get('/lotes-pagination', [LoteController::class, 'paginatedIndex']);
+Route::get('/sitios-pagination', [SitioController::class, 'paginatedIndex']);
+Route::get('/productos-pagination', [ProductoController::class, 'paginatedIndex']);
+Route::get('/proveedores-pagination', [ProveedorController::class, 'paginatedIndex']);
+Route::get('/usuarios-pagination', [UsuarioController::class, 'paginatedIndex']);
+Route::get('/etiquetas-pagination', [EtiquetaController::class, 'paginatedIndex']);
+Route::get('/comprobantes-pagination', [ComprobanteController::class, 'paginatedIndex']);
+Route::get('/retornos-pagination', [RetornoController::class, 'paginatedIndex']);
 
 //rutas de autenticación
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
@@ -70,7 +81,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/comprobantes/{id}', [ComprobanteController::class, 'show']);  // Mostrar un comprobante específico
 
     //rutas de productos
-    Route::get('/productos', [ProductoController::class, 'index']);
+    
     Route::get('/productos/{id}', [ProductoController::class, 'show']);
 
     //rutas de retorno

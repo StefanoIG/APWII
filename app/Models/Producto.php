@@ -9,27 +9,21 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Producto extends Model
 {
     use SoftDeletes;
-    protected $dates = ['deleted_at'];
-
-    // Tabla asociada al modelo
+    
     protected $table = 'producto';
-
-    // Llave primaria
     protected $primaryKey = 'id_producto';
 
-    // Atributos que se pueden asignar de manera masiva
     protected $fillable = [
         'nombre_producto',
         'tipo_producto',
         'descripcion_producto',
         'precio',
-        'id_etiqueta',
-        'isActive'
+        'isActive',
     ];
 
-    // Relación con el modelo Etiqueta (muchos productos pueden tener una etiqueta)
-    public function etiqueta()
+    // Relación muchos a muchos con Etiqueta
+    public function etiquetas()
     {
-        return $this->belongsTo(Etiqueta::class, 'id_etiqueta', 'id_etiqueta');
+        return $this->belongsToMany(Etiqueta::class, 'etiqueta_producto', 'producto_id', 'etiqueta_id');
     }
 }

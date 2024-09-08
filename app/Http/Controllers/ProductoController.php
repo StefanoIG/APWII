@@ -154,4 +154,69 @@ class ProductoController extends Controller
 
         return $codigoBarra;
     }
+
+    public function paginatedIndex(Request $request)
+{
+    // Validar la solicitud
+    $validator = Validator::make($request->all(), [
+        'nombre_producto' => 'sometimes|string|max:255',
+        'tipo_producto' => 'sometimes|string|max:255',
+        'descripcion_producto' => 'sometimes|string|max:255',
+        'precio' => 'sometimes|numeric',
+        'id_etiqueta' => 'sometimes|integer|nullable',
+        'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+        'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    // Obtener los datos validados
+    $validatedData = $validator->validated();
+
+    // Construir la consulta con los filtros opcionales
+    $query = Producto::with('etiquetas'); // Incluye las etiquetas relacionadas
+
+    if (isset($validatedData['nombre_producto'])) {
+        $query->where('nombre_producto', 'like', '%' . $validatedData['nombre_producto'] . '%');
+    }
+
+    if (isset($validatedData['tipo_producto'])) {
+        $query->where('tipo_producto', 'like', '%' . $validatedData['tipo_producto'] . '%');
+    }
+
+    if (isset($validatedData['descripcion_producto'])) {
+        $query->where('descripcion_producto', 'like', '%' . $validatedData['descripcion_producto'] . '%');
+    }
+
+    if (isset($validatedData['precio'])) {
+        $query->where('precio', $validatedData['precio']);
+    }
+
+    if (isset($validatedData['id_etiqueta'])) {
+        // Filtrar productos que tengan una etiqueta específica
+        $query->whereHas('etiquetas', function($q) use ($validatedData) {
+            $q->where('etiqueta_id', $validatedData['id_etiqueta']);
+        });
+    }
+
+    // Filtrar por deleted_at
+    if (isset($validatedData['deleted_at'])) {
+        if ($validatedData['deleted_at']) {
+            $query->onlyTrashed(); // Solo productos eliminados
+        } else {
+            $query->withTrashed(); // Todos los productos, incluidos los eliminados
+        }
+    }
+
+    // Obtener el número de resultados por página, por defecto 15
+    $perPage = $validatedData['per_page'] ?? 15;
+
+    // Obtener los resultados paginados
+    $productos = $query->paginate($perPage);
+
+    return response()->json($productos);
+}
+
 }

@@ -43,7 +43,7 @@ class ProveedorController extends Controller
 
         //Si la validacion es correcta
         $proveedor = Proveedor::create($request->all());
-        return response()->json(['message' => 'Proveedor Creado correctamente',$proveedor], 200);
+        return response()->json(['message' => 'Proveedor Creado correctamente', $proveedor], 200);
     }
 
     /**
@@ -79,7 +79,7 @@ class ProveedorController extends Controller
         //Si la validacion es correcta
         $proveedor = Proveedor::find($id);
         $proveedor->update($request->all());
-        return response()->json(['message' => 'Proveedor actualizado correctamente',$proveedor], 200);
+        return response()->json(['message' => 'Proveedor actualizado correctamente', $proveedor], 200);
     }
 
     /**
@@ -91,5 +91,71 @@ class ProveedorController extends Controller
         $proveedor = Proveedor::find($id);
         $proveedor->delete();
         return response()->json(['message' => 'Proveedor eliminado correctamente'], 200);
+    }
+
+    public function paginatedIndex(Request $request)
+    {
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'sometimes|string|max:255',
+            'direccion' => 'sometimes|string|max:255',
+            'email' => 'sometimes|string|max:255',
+            'telefono' => 'sometimes|string|max:255',
+            'Cuidad' => 'sometimes|string|max:255',
+            'Activo' => 'sometimes|boolean',
+            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+
+        // Construir la consulta con los filtros opcionales
+        $query = Proveedor::query();
+
+        if (isset($validatedData['nombre'])) {
+            $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
+        }
+
+        if (isset($validatedData['direccion'])) {
+            $query->where('direccion', 'like', '%' . $validatedData['direccion'] . '%');
+        }
+
+        if (isset($validatedData['email'])) {
+            $query->where('email', 'like', '%' . $validatedData['email'] . '%');
+        }
+
+        if (isset($validatedData['telefono'])) {
+            $query->where('telefono', 'like', '%' . $validatedData['telefono'] . '%');
+        }
+
+        if (isset($validatedData['Cuidad'])) {
+            $query->where('Cuidad', 'like', '%' . $validatedData['Cuidad'] . '%');
+        }
+
+        if (isset($validatedData['Activo'])) {
+            $query->where('Activo', $validatedData['Activo']);
+        }
+
+        // Filtrar por deleted_at
+        if (isset($validatedData['deleted_at'])) {
+            if ($validatedData['deleted_at']) {
+                $query->onlyTrashed(); // Solo proveedores eliminados
+            } else {
+                $query->withTrashed(); // Todos los proveedores, incluidos los eliminados
+            }
+        }
+
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+
+        // Obtener los resultados paginados
+        $proveedores = $query->paginate($perPage);
+
+        return response()->json($proveedores);
     }
 }

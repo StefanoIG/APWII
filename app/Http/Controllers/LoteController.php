@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Etiqueta;
+use App\Models\Producto;
 
 class LoteController extends Controller
 {
@@ -80,6 +82,38 @@ class LoteController extends Controller
 
             // Guardar el lote
             $lote->save();
+
+            // Si el lote es expirable, crear o encontrar la etiqueta "expirable" y asignarla al producto
+            if ($validatedData['expirable']) {
+                // Buscar o crear la etiqueta "expirable"
+                $etiqueta = Etiqueta::firstOrCreate(
+                    ['nombre' => 'expirable'],  // Condición de búsqueda
+                    [
+                        'color_hex' => '#FF0000',
+                        'descripcion' => 'Producto expirable',
+                        'categoria' => 'Advertencia',
+                        'prioridad' => 'alta',
+                    ]
+                );
+                
+                // Depurar para ver si la etiqueta se creó correctamente
+                Log::info('Etiqueta creada:', $etiqueta->toArray());
+            
+                // Asignar la etiqueta al lote
+                $lote->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
+            
+                // Obtener el producto
+                $producto = Producto::find($validatedData['id_producto']);
+            
+                if ($producto) {
+                    // Asignar la etiqueta al producto sin eliminar las etiquetas anteriores
+                    $producto->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
+                } else {
+                    // Manejo de error: Producto no encontrado
+                    Log::error("Producto no encontrado con ID: " . $validatedData['id_producto']);
+                }
+            }
+            
 
             DB::commit();
             return response()->json($lote, 201);
@@ -208,4 +242,50 @@ class LoteController extends Controller
 
         return response()->json(['message' => 'Lote eliminado correctamente'], 200);
     }
+
+
+    //paginacioncion de lotes
+
+    public function paginatedIndex(Request $request)
+{
+    // Validar la solicitud
+    $validator = Validator::make($request->all(), [
+        'id_producto' => 'sometimes|exists:producto,id_producto',
+        'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
+        // si el campo 'deleted_at' es nulo, el lote está activo
+        'deleted_at' => 'sometimes|nullable',
+        'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    // Obtener los datos validados
+    $validatedData = $validator->validated();
+
+    // Construir la consulta con los filtros opcionales
+    $query = Lote::query();
+
+    if (isset($validatedData['id_producto'])) {
+        $query->where('id_producto', $validatedData['id_producto']);
+    }
+
+    if (isset($validatedData['id_proveedor'])) {
+        $query->where('id_proveedor', $validatedData['id_proveedor']);
+    }
+
+    if (isset($validatedData['deleted_at'])) {
+        $query->where('deleted_at', $validatedData['deleted_at']);
+    }
+
+    // Obtener el número de resultados por página, por defecto 15
+    $perPage = $validatedData['per_page'] ?? 15;
+
+    // Obtener los resultados paginados con las etiquetas asociadas
+    $lotes = $query->with('etiquetas')->paginate($perPage);
+
+    return response()->json($lotes);
+}
+
 }

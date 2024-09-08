@@ -132,6 +132,61 @@ class ComprobanteController extends Controller
 
         return response()->json($comprobante);
     }
-   
+
+    public function paginatedIndex(Request $request)
+    {
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'fecha_emision' => 'sometimes|date',
+            'id_lote' => 'sometimes|exists:lote,id_lote',
+            'cantidad' => 'sometimes|integer',
+            'precio_total' => 'sometimes|numeric',
+            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+
+        // Construir la consulta con los filtros opcionales
+        $query = Comprobante::query();
+
+        if (isset($validatedData['fecha_emision'])) {
+            $query->whereDate('fecha_emision', $validatedData['fecha_emision']);
+        }
+
+        if (isset($validatedData['id_lote'])) {
+            $query->where('id_lote', $validatedData['id_lote']);
+        }
+
+        if (isset($validatedData['cantidad'])) {
+            $query->where('cantidad', $validatedData['cantidad']);
+        }
+
+        if (isset($validatedData['precio_total'])) {
+            $query->where('precio_total', $validatedData['precio_total']);
+        }
+
+        // Filtrar por deleted_at
+        if (isset($validatedData['deleted_at'])) {
+            if ($validatedData['deleted_at']) {
+                $query->onlyTrashed(); // Solo comprobantes eliminados
+            } else {
+                $query->withTrashed(); // Todos los comprobantes, incluidos los eliminados
+            }
+        }
+
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+
+        // Obtener los resultados paginados
+        $comprobantes = $query->paginate($perPage);
+
+        return response()->json($comprobantes);
+    }
 
 }
