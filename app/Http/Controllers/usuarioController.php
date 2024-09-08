@@ -12,6 +12,10 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use App\Mail\RecoveryPassword;
 use App\Mail\WelcomeMail;
+use App\Mail\DemoMail;
+use App\Mail\RequestDemoMail;
+use App\Models\Demo;
+use App\Mail\DemoRejectedMail;
 use Illuminate\Support\Facades\Mail;
 
 
@@ -50,7 +54,10 @@ class UsuarioController extends Controller
             'cedula' => 'required|string|max:10|unique:usuarios,cedula',
             'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
             'password' => 'required|string|min:6',
-            'rol' => 'in:empleado','demo', 'owner','admin',  // Validación del rol
+            'rol' => 'in:empleado,admin,demo,owner',
+            'demo',
+            'owner',
+            'admin',  // Validación del rol
         ]);
 
         if ($validator->fails()) {
@@ -92,7 +99,7 @@ class UsuarioController extends Controller
             'cedula' => 'sometimes|required|string|max:10|unique:usuarios,cedula,' . $usuario->id,
             'correo_electronico' => 'sometimes|required|email|unique:usuarios,correo_electronico,' . $usuario->id,
             'contrasena' => 'sometimes|required|string|min:6',
-            'rol' => 'sometimes|in:empleado,admin,cliente',
+            'rol' => 'sometimes|in:empleado,admin,demo,owner',
         ]);
 
         if ($validator->fails()) {
@@ -201,6 +208,140 @@ class UsuarioController extends Controller
             return response()->json(['message' => 'Su contraseña ha sido cambiada exitosamente.'], 200);
         } else {
             return response()->json(['message' => 'No se ha encontrado el usuario.'], 404);
+        }
+    }
+
+
+
+    public function requestDemo(Request $request)
+    {
+        // Validar que el email fue enviado en la solicitud
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|unique:demo,email|unique:usuarios,correo_electronico',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Registrar el correo en la tabla demo
+            $demoRequest = Demo::create([
+                'email' => $request->email,
+                // El usuario_id y isActive se manejarán al aprobar
+            ]);
+
+            // Obtener los correos de los administradores
+            $adminEmail = Usuario::where('rol', 'admin')->pluck('correo_electronico')->toArray();
+
+            // Enviar un correo a los administradores notificando la nueva solicitud de demo
+            Mail::to($adminEmail)->send(new RequestDemoMail($demoRequest));
+
+            DB::commit();
+
+            return response()->json(['message' => 'Solicitud de demo enviada correctamente.'], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
+        }
+    }
+
+
+    // Aprobación de demo
+    public function approveDemo(Request $request)
+    {
+        // Validar el ID de la demo a aprobar
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|integer|exists:demo,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Pedir el ID de la demo a aprobar
+            $demoRequest = Demo::findOrFail($request->id);
+
+            // Verificar que la demo aún no ha sido aprobada
+            if ($demoRequest->isActive) {
+                return response()->json(['message' => 'La demo ya ha sido aprobada.'], 400);
+            }
+
+            // Generar datos predeterminados para el usuario demo
+            $nombreDemo = 'Demo ' . Str::random(5);
+            $apellidoDemo = 'User';
+            $telefonoDemo = '0000000000';
+            $cedulaDemo = Str::random(10);
+
+            // Generar la contraseña en texto plano
+            $passwordPlano = Str::random(8);
+
+            // Crear el usuario demo en la tabla usuarios con la contraseña hasheada
+            $usuarioDemo = Usuario::create([
+                'nombre' => $nombreDemo,
+                'apellido' => $apellidoDemo,
+                'telefono' => $telefonoDemo,
+                'cedula' => $cedulaDemo,
+                'correo_electronico' => $demoRequest->email,
+                'password' => Hash::make($passwordPlano),
+                'rol' => 'demo',
+            ]);
+
+            // Actualizar la tabla demo con el ID del usuario y marcar como activa
+            $demoRequest->update([
+                'usuario_id' => $usuarioDemo->id,
+                'isActive' => true,
+            ]);
+
+            // Enviar el correo con la contraseña en texto plano
+            Mail::to($demoRequest->email)->send(new DemoMail($usuarioDemo, $passwordPlano));
+
+            DB::commit();
+
+            return response()->json(['message' => 'Demo aprobada exitosamente', 'usuario' => $usuarioDemo], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['errors' => 'Hubo un error al aprobar la demo. Por favor, inténtelo de nuevo.'], 500);
+        }
+    }
+
+
+
+
+
+
+    //Negar demo
+    public function rejectDemo(Request $request)
+    {
+        // Validar el ID de la demo a rechazar
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|integer|exists:demo,id',
+        ]);
+
+        // Si falla la validación
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $demoRequest = Demo::findOrFail($request->id);
+
+            // Enviar un correo de rechazo con el motivo
+            Mail::to($demoRequest->email)->send(new DemoRejectedMail($demoRequest));
+
+            DB::commit();
+
+            return response()->json(['message' => 'Demo rechazada y correo enviado.'], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['errors' => 'Hubo un error al rechazar la demo. Por favor, inténtelo de nuevo.'], 500);
         }
     }
 }
