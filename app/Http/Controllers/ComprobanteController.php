@@ -25,43 +25,50 @@ class ComprobanteController extends Controller
         }
     }
 
-    // Crear un nuevo comprobante
-    public function store(Request $request)
-    {
-        DB::beginTransaction();
-    
-        try {
-            $validatedData = $request->validate([
-                'fecha_emision' => 'required|date',
-                'id_lote' => 'required|exists:lote,id_lote',
-                'usuario_id' => 'required|exists:usuarios,id',
-                'id_producto' => 'required|exists:producto,id_producto',
-                'cantidad' => 'required|integer',
-                'precio_total' => 'required|numeric'
-            ]);
-    
-            // Verificar que el lote tenga suficientes productos
-            $lote = Lote::findOrFail($validatedData['id_lote']);
-            if ($lote->cantidad < $validatedData['cantidad']) {
-                return response()->json(['error' => 'El lote no tiene suficientes productos.'], 400);
-            }
-    
-            // Crear el comprobante
-            $comprobante = Comprobante::create($validatedData);
-    
-            // Actualizar la cantidad de productos en el lote
-            $lote->cantidad -= $validatedData['cantidad'];
-            $lote->save();
-    
-            DB::commit();
-    
-            return response()->json($comprobante, 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error al crear comprobante: ' . $e->getMessage());
-            return response()->json(['error' => 'Error en el servidor', 'details' => $e->getMessage()], 500);
+   // Crear un nuevo comprobante
+public function store(Request $request)
+{
+    DB::beginTransaction();
+
+    try {
+        // Validar la solicitud
+        $validatedData = $request->validate([
+            'fecha_emision' => 'required|date',
+            'id_lote' => 'required|exists:lote,id_lote',
+            'usuario_id' => 'required|exists:usuarios,id',
+            'id_producto' => 'required|exists:producto,id_producto',
+            'cantidad' => 'required|integer',
+            'precio_total' => 'required|numeric'
+        ]);
+
+        // Verificar si el lote está expirado
+        if (!$this->verificarLoteExpirado($validatedData['id_lote'])) {
+            return response()->json(['error' => 'No se pueden extraer productos de un lote expirado.'], 400);
         }
+
+        // Verificar que el lote tenga suficientes productos
+        $lote = Lote::findOrFail($validatedData['id_lote']);
+        if ($lote->cantidad < $validatedData['cantidad']) {
+            return response()->json(['error' => 'El lote no tiene suficientes productos.'], 400);
+        }
+
+        // Crear el comprobante
+        $comprobante = Comprobante::create($validatedData);
+
+        // Actualizar la cantidad de productos en el lote
+        $lote->cantidad -= $validatedData['cantidad'];
+        $lote->save();
+
+        DB::commit();
+
+        return response()->json($comprobante, 201);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error al crear comprobante: ' . $e->getMessage());
+        return response()->json(['error' => 'Error en el servidor', 'details' => $e->getMessage()], 500);
     }
+}
+
 
     // Método para mostrar el comprobante en PDF
     public function generarPDF($id)
@@ -189,4 +196,17 @@ class ComprobanteController extends Controller
         return response()->json($comprobantes);
     }
 
+
+     // Función para verificar si el lote tiene la etiqueta "expirada"
+     private function verificarLoteExpirado($id_lote)
+     {
+         $lote = Lote::findOrFail($id_lote);
+ 
+         // Verificar si el lote tiene la etiqueta "expirada"
+         if ($lote->etiquetas()->where('nombre', 'expirada')->exists()) {
+             return false;
+         }
+ 
+         return true;
+     }
 }

@@ -95,16 +95,16 @@ class LoteController extends Controller
                         'prioridad' => 'alta',
                     ]
                 );
-                
+
                 // Depurar para ver si la etiqueta se creó correctamente
                 Log::info('Etiqueta creada:', $etiqueta->toArray());
-            
+
                 // Asignar la etiqueta al lote
                 $lote->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
-            
+
                 // Obtener el producto
                 $producto = Producto::find($validatedData['id_producto']);
-            
+
                 if ($producto) {
                     // Asignar la etiqueta al producto sin eliminar las etiquetas anteriores
                     $producto->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
@@ -113,7 +113,7 @@ class LoteController extends Controller
                     Log::error("Producto no encontrado con ID: " . $validatedData['id_producto']);
                 }
             }
-            
+
 
             DB::commit();
             return response()->json($lote, 201);
@@ -247,45 +247,92 @@ class LoteController extends Controller
     //paginacioncion de lotes
 
     public function paginatedIndex(Request $request)
-{
-    // Validar la solicitud
-    $validator = Validator::make($request->all(), [
-        'id_producto' => 'sometimes|exists:producto,id_producto',
-        'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
-        // si el campo 'deleted_at' es nulo, el lote está activo
-        'deleted_at' => 'sometimes|nullable',
-        'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
-    ]);
+    {
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'id_producto' => 'sometimes|exists:producto,id_producto',
+            'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
+            // si el campo 'deleted_at' es nulo, el lote está activo
+            'deleted_at' => 'sometimes|nullable',
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
 
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+
+        // Construir la consulta con los filtros opcionales
+        $query = Lote::query();
+
+        if (isset($validatedData['id_producto'])) {
+            $query->where('id_producto', $validatedData['id_producto']);
+        }
+
+        if (isset($validatedData['id_proveedor'])) {
+            $query->where('id_proveedor', $validatedData['id_proveedor']);
+        }
+
+        if (isset($validatedData['deleted_at'])) {
+            $query->where('deleted_at', $validatedData['deleted_at']);
+        }
+
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+
+        // Obtener los resultados paginados con las etiquetas asociadas
+        $lotes = $query->with('etiquetas')->paginate($perPage);
+
+        return response()->json($lotes);
     }
 
-    // Obtener los datos validados
-    $validatedData = $validator->validated();
 
-    // Construir la consulta con los filtros opcionales
-    $query = Lote::query();
+    public function verificarLotesExpirados()
+    {
+        Log::info('Ejecutando la función verificarLotesExpirados');
+        // Obtener la fecha y hora actual del servidor
+        $fechaActual = now();
 
-    if (isset($validatedData['id_producto'])) {
-        $query->where('id_producto', $validatedData['id_producto']);
+        // Buscar lotes expirables que no tengan la etiqueta "expirada" y cuya fecha de caducidad ya haya pasado
+        $lotesExpirados = Lote::where('expirable', true)
+            ->where('fecha_caducidad', '<', $fechaActual)
+            ->whereDoesntHave('etiquetas', function ($query) {
+                $query->where('nombre', 'expirada');
+            })
+            ->get();
+
+        foreach ($lotesExpirados as $lote) {
+            // Crear o encontrar la etiqueta "expirada"
+            $etiquetaExpirada = Etiqueta::firstOrCreate(
+                ['nombre' => 'expirada'],  // Condición de búsqueda
+                [
+                    'color_hex' => '#FF0000',
+                    'descripcion' => 'Producto expirado',
+                    'categoria' => 'Advertencia',
+                    'prioridad' => 'alta',
+                ]
+            );
+
+            // Asignar la etiqueta "expirada" al lote
+            $lote->etiquetas()->syncWithoutDetaching([$etiquetaExpirada->id_etiqueta]);
+
+            // Obtener el producto asociado al lote
+            $producto = Producto::find($lote->id_producto);
+
+            if ($producto) {
+                // Asignar la etiqueta "expirada" al producto sin eliminar las etiquetas anteriores
+                $producto->etiquetas()->syncWithoutDetaching([$etiquetaExpirada->id_etiqueta]);
+            } else {
+                // Manejo de error: Producto no encontrado
+                Log::error("Producto no encontrado con ID: " . $lote->id_producto);
+            }
+
+            // Registrar que el lote ha sido marcado como expirado
+            Log::info('Lote con ID ' . $lote->id_lote . ' marcado como expirado.');
+        }
     }
 
-    if (isset($validatedData['id_proveedor'])) {
-        $query->where('id_proveedor', $validatedData['id_proveedor']);
-    }
-
-    if (isset($validatedData['deleted_at'])) {
-        $query->where('deleted_at', $validatedData['deleted_at']);
-    }
-
-    // Obtener el número de resultados por página, por defecto 15
-    $perPage = $validatedData['per_page'] ?? 15;
-
-    // Obtener los resultados paginados con las etiquetas asociadas
-    $lotes = $query->with('etiquetas')->paginate($perPage);
-
-    return response()->json($lotes);
-}
-
+   
 }
