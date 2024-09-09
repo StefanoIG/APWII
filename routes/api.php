@@ -27,7 +27,7 @@ Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
 
 //requets demo
 Route::post('/demo', [UsuarioController::class, 'requestDemo']);
-
+Route::get('/probar-lotes-expirados', [LoteController::class, 'verificarLotesExpirados']);
 
 //rutas protegidas
 Route::middleware('auth:api')->group(function () {

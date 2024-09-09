@@ -73,7 +73,7 @@ public function register(Request $request)
             'telefono' => $request->telefono,
             'cedula' => $request->cedula,
             'correo_electronico' => $request->correo_electronico,
-            'password' => bcrypt($request->password), // Asegúrate de encriptar la contraseña
+            'password' =>$request->password, // Asegúrate de encriptar la contraseña
             'rol' => $request->rol,
         ]);
 
@@ -93,19 +93,23 @@ public function register(Request $request)
             Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
         } catch (\Exception $e) {
             // Deshacer la creación del usuario en caso de error al enviar el correo
+            //log de errores
+            Log::error('Error al crear el usuario: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+            //rolback
             DB::rollBack();
             return response()->json(['errors' => 'Hubo un error al enviar el correo de bienvenida. Por favor, inténtelo de nuevo.'], 500);
+            
         }
 
         DB::commit();
         return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
     } catch (\Exception $e) {
         DB::rollBack();
-        Log::error('Error al crear usuario: ' . $e->getMessage());
         return response()->json(['errors' => 'Hubo un error al crear el usuario. Por favor, inténtelo de nuevo.'], 500);
     }
 }
-
 
     /**
      * Editar la información del usuario.

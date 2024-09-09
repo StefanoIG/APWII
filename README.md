@@ -48,29 +48,45 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
 
 4. **Configurar el Archivo `.env`**: Copia el archivo de ejemplo y configura las variables necesarias:
 
-    ```bash
-    cp .env.example .env
-    ```
+  ```bash
+  cp .env.example .env
+  ```
 
-    Luego, edita `.env` para incluir la clave JWT:
+  Luego, edita `.env` para incluir la clave JWT:
 
-    ```plaintext
-    JWT_SECRET=tu_clave_jwt_aqui
-    ```
+  ```plaintext
+  JWT_SECRET=tu_clave_jwt_aqui
+  ```
 
-    Genera una clave JWT con:
+  Genera una clave JWT con:
 
-    ```bash
-    php artisan jwt:secret
-    ```
+  ```bash
+  php artisan jwt:secret
+  ```
 
-5. **Ejecutar Migraciones**: Configura la base de datos con:
+5. **Configurar Variables de Correo Electrónico**: En el archivo `.env`, asegúrate de configurar las variables de correo electrónico necesarias. Si estás utilizando Gmail, ten en cuenta que la contraseña que debes proporcionar no es la misma que usas para iniciar sesión en Google. Debes ir a la configuración de tu cuenta de Google, acceder al administrador de contraseñas para aplicaciones y registrar una nueva contraseña específica para esta aplicación. Luego, en el archivo `.env`, configura las variables de correo electrónico de la siguiente manera:
+
+  ```plaintext
+  MAIL_MAILER=smtp
+  MAIL_HOST=smtp.gmail.com
+  MAIL_PORT=587
+  MAIL_USERNAME=tu_correo_electronico@gmail.com
+  MAIL_PASSWORD=tu_clave_de_aplicacion_generada
+  MAIL_ENCRYPTION=tls
+  MAIL_FROM_ADDRESS=tu_correo_electronico@gmail.com
+  MAIL_FROM_NAME="${APP_NAME}"
+  ```
+
+Recuerda reemplazar `tu_correo_electronico@gmail.com` con tu dirección de correo electrónico y `tu_clave_de_aplicacion_generada` con la clave de aplicación generada en la configuración de tu cuenta de Google.
+
+
+6. **Ejecutar Migraciones**: Configura la base de datos con:
 
     ```bash
     php artisan migrate
     ```
 
-6. **Iniciar el Servidor**: Inicia el servidor de desarrollo con:
+7. **Iniciar el Servidor**: Inicia el servidor de desarrollo con:
 
     ```bash
     php artisan serve
@@ -115,9 +131,15 @@ La documentación del proyecto está disponible en `public/docs`. Fue generada c
 
 Este proyecto fue desarrollado por:
 
+## Backend
 - 🧑‍💻 Stefano Aguilar (Desarrollador Principal)
 - 👩‍💻 Cristhian Ortiz (Dev)
 - 👨‍💻 Julio Arias     (Dev y Docs)
+
+## FrontEnd
+- 👩‍💻 Josthin Mosquera (Dev)
+- 👨‍💻 Josthin Baque     (Dev)
+
 
 Agradecemos sus contribuciones y esfuerzo en el desarrollo del sistema.
 
