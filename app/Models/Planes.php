@@ -12,8 +12,17 @@ class Planes extends Model
 
     //definir pk
     protected $primaryKey = 'id_plan';
-    protected $fillable = ['name', 'price', 'duration', 'features'];
-    
+    protected $fillable = [
+        'product_id',
+        'name',
+        'description',
+        'status',
+        'billing_cycles',
+        'payment_preferences',
+        'taxes',
+        'quantity_supported'
+    ];
+
     public function users()
     {
         return $this->hasMany(User::class);
