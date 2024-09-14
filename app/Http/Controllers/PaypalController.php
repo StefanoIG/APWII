@@ -9,6 +9,15 @@ use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPa
 
 class PaypalController extends Controller
 {
+
+    public function index()
+    {
+        return view('paypal');
+    }
+
+    
+
+
     // Procesar el pago y asociarlo al usuario, si es exitoso
     public function payment(Request $request)
     {
@@ -47,6 +56,37 @@ class PaypalController extends Controller
             return redirect()->route('paypal.payment.cancel')->with('error', 'Algo salió mal.');
         } else {
             return redirect()->route('paypal.payment.cancel')->with('error', $response['message'] ?? 'Algo salió mal.');
+        }
+    }
+
+
+     public function paymentCancel()
+    {
+        return redirect()
+              ->route('paypal')
+              ->with('error', $response['message'] ?? 'You have canceled the transaction.');
+    }
+  
+    /**
+     * Write code on Method 
+     * Written by Appfinz Technologies
+     * @return response()
+     */
+    public function paymentSuccess(Request $request)
+    {
+        $provider = new PayPalClient;
+        $provider->setApiCredentials(config('paypal'));
+        $provider->getAccessToken();
+        $response = $provider->capturePaymentOrder($request['token']);
+  
+        if (isset($response['status']) && $response['status'] == 'COMPLETED') {
+            return redirect()
+                ->route('paypal')
+                ->with('success', 'Transaction complete.');
+        } else {
+            return redirect()
+                ->route('paypal')
+                ->with('error', $response['message'] ?? 'Something went wrong.');
         }
     }
 }

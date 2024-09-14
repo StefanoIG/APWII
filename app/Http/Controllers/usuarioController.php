@@ -90,9 +90,11 @@ class UsuarioController extends Controller
                     DB::rollBack();
                     return response()->json(['errors' => 'Error en el proceso de pago. Inténtelo de nuevo.'], 500);
                 }
+                 // Redirigir al usuario a PayPal
+                 return redirect()->away($paymentResult['redirect_url']);
             }
 
-            // Enviar correo de bienvenida (diferente según el rol)
+            // Enviar correo de bienvenida 
             try {
                 Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
             } catch (\Exception $e) {
@@ -111,9 +113,8 @@ class UsuarioController extends Controller
     }
 
     //Funcion para procesar pago
-public function processPayment($planId, $usuario)
+    public function processPayment($planId, $usuario)
 {
-    // Obtener los detalles del plan
     $plan = Planes::find($planId);
 
     if (!$plan) {
@@ -127,28 +128,19 @@ public function processPayment($planId, $usuario)
         $paypalToken = $provider->getAccessToken();
 
         // Crear orden de PayPal
-        $response = $provider->createOrder([
-            "intent" => "CAPTURE",
+        $response = $provider->createSubscription([
+            "plan_id" => $plan->id_plan,  // Plan de PayPal
             "application_context" => [
                 "return_url" => route('paypal.payment.success', ['user_id' => $usuario->id]),
                 "cancel_url" => route('paypal.payment.cancel'),
-            ],
-            "purchase_units" => [
-                0 => [
-                    "amount" => [
-                        "currency_code" => "USD",
-                        "value" => $plan->price
-                    ]
-                ]
             ]
         ]);
+        
 
-        // Verificar la respuesta
         if (isset($response['id']) && $response['id'] != null) {
             foreach ($response['links'] as $links) {
                 if ($links['rel'] == 'approve') {
                     Log::info('Orden de PayPal creada exitosamente', ['order_id' => $response['id']]);
-                    // Redirigir al usuario a PayPal para completar el pago
                     return ['status' => true, 'redirect_url' => $links['href']];
                 }
             }
@@ -161,7 +153,43 @@ public function processPayment($planId, $usuario)
         return ['status' => false, 'message' => 'Error en el servidor'];
     }
 }
-    
+
+
+//funcion si el pago fue exitoso
+public function paymentSuccess(Request $request)
+{
+    $userId = $request->input('user_id');
+    $usuario = Usuario::find($userId);
+
+    $provider = new PayPalClient;
+    $provider->setApiCredentials(config('paypal'));
+    $paypalToken = $provider->getAccessToken();
+
+    $paymentId = $request->input('paymentId');
+    $payerId = $request->input('PayerID');
+
+    $response = $provider->capturePaymentOrder($paymentId, $payerId);
+
+    if ($response['status'] === 'COMPLETED') {
+        DB::beginTransaction();
+        try {
+            // Actualizar el estado de la suscripción
+            $usuario->suscripcion = 'activa';
+            $usuario->save();
+
+            DB::commit();
+            return redirect('/payment/success'); // Redirigir a la página de éxito
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al confirmar el pago: ' . $e->getMessage());
+            return redirect('/payment/failure'); // Redirigir a la página de error
+        }
+    } else {
+        return redirect('/payment/failure'); // Redirigir a la página de error
+    }
+}
+
+
     /**
      * Editar la información del usuario.
      */
@@ -408,10 +436,6 @@ public function processPayment($planId, $usuario)
             return response()->json(['errors' => 'Hubo un error al aprobar la demo. Por favor, inténtelo de nuevo.'], 500);
         }
     }
-
-
-
-
 
 
     //Negar demo

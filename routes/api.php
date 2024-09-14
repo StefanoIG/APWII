@@ -20,7 +20,11 @@ Route::get('/planes/{id}', [PlanController::class, 'show']);
 Route::post('/planes', [PlanController::class, 'store']);
 Route::put('/planes/{id}', [PlanController::class, 'update']);
 
-//rutas paypa
+//rutas paypal
+Route::get('paypal', [PayPalController::class, 'index'])->name('paypal');
+Route::get('paypal/payment', [PayPalController::class, 'payment'])->name('paypal.payment');
+Route::get('paypal/payment/success', [PayPalController::class, 'paymentSuccess'])->name('paypal.payment.success');
+Route::get('paypal/payment/cancel', [PayPalController::class, 'paymentCancel'])->name('paypal.payment/cancel');
 Route::get('paypal/payment/success', [PayPalController::class, 'paymentSuccess'])->name('paypal.payment.success');
 Route::get('paypal/payment/cancel', [PayPalController::class, 'paymentCancel'])->name('paypal.payment.cancel');
 
