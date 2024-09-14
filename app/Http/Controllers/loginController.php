@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cookie; // Para manipular cookies
 
 class loginController extends Controller
 {
@@ -27,10 +28,20 @@ class loginController extends Controller
 
             // Autenticación exitosa, generamos el token JWT
             $user = Auth::user();
+
+            // Verificar si la cuenta está eliminada (soft delete)
+            if ($user->deleted_at) {
+                Log::warning('Intento de login para una cuenta eliminada: ' . $user->correo_electronico);
+                return response()->json(['error' => 'Cuenta expirada'], 403);
+            }
+
             Log::info('Autenticación exitosa para el usuario: ' . $user->correo_electronico);
 
-            // Devolvemos el token en la respuesta
-            return response()->json(compact('token'));
+            // Crear una cookie con el token JWT
+            $cookie = Cookie::make('token', $token, 60); // La cookie expira en 60 minutos
+
+            // Devolver la respuesta con la cookie
+            return response()->json(['message' => 'Autenticación exitosa'])->cookie($cookie);
         } catch (\Exception $e) {
             // En caso de error, registramos el error en el log y devolvemos un error 500
             Log::error('Error durante el proceso de login: ' . $e->getMessage());

@@ -11,6 +11,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "picqer/php-barcode-generator": "^2.4",
+        "srmklive/paypal": "~3.0",
         "tymon/jwt-auth": "^2.1"
     },
     "require-dev": {

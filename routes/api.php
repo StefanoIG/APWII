@@ -10,11 +10,32 @@ use App\Http\Controllers\LoteController;
 use App\Http\Controllers\ComprobanteController;
 use App\Http\Controllers\RetornoController;
 use App\Http\Controllers\SitioController;
+use App\Http\Controllers\ChatBotController;
+use App\Http\Controllers\PlanController;
+use App\Http\Controllers\PayPalController;
+
+//rutas de planes
+Route::get('/planes', [PlanController::class, 'index']);
+Route::get('/planes/{id}', [PlanController::class, 'show']);
+Route::post('/planes', [PlanController::class, 'store']);
+Route::put('/planes/{id}', [PlanController::class, 'update']);
+
+//rutas paypa
+Route::get('paypal/payment/success', [PayPalController::class, 'paymentSuccess'])->name('paypal.payment.success');
+Route::get('paypal/payment/cancel', [PayPalController::class, 'paymentCancel'])->name('paypal.payment.cancel');
+
+
+
+
+//rutas chatbot
+Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
+Route::post('/questions', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
+Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
+
 
 
 //por ahora dejarla aqui
 Route::post('/sitios', [SitioController::class, 'store']);
-
 
 //rutas de autenticación
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login

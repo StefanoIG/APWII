@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 
 class Usuario extends Authenticatable implements JWTSubject
 {
@@ -72,5 +74,9 @@ class Usuario extends Authenticatable implements JWTSubject
     public function owners()
     {
         return $this->belongsToMany(Usuario::class, 'owner_empleado', 'empleado_id', 'owner_id');
+    }
+    public function planes(): BelongsTo
+    {
+        return $this->belongsTo(Planes::class);
     }
 }

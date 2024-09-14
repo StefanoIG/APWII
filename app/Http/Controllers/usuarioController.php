@@ -18,6 +18,9 @@ use App\Models\Demo;
 use App\Mail\DemoRejectedMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Models\Planes;
+use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
+
 
 class UsuarioController extends Controller
 {
@@ -44,73 +47,121 @@ class UsuarioController extends Controller
     /**
      * Crear un nuevo usuario.
      */
-    
-public function register(Request $request)
-{
-    // Validación de datos
-    $validator = Validator::make($request->all(), [
-        'nombre' => 'required|string|max:255',
-        'apellido' => 'required|string|max:255',
-        'telefono' => 'required|string|max:20',
-        'cedula' => 'required|string|max:10|unique:usuarios,cedula',
-        'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
-        'password' => 'required|string|min:6',
-        'rol' => 'required|in:empleado,admin,demo,owner', // Asegúrate de que 'rol' sea requerido
-        'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio', // Validar el sitio si el rol es empleado
-    ]);
 
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
-
-    // Uso de transacciones para asegurar consistencia
-    DB::beginTransaction();
-    try {
-        // Creación del usuario
-        $usuario = Usuario::create([
-            'nombre' => $request->nombre,
-            'apellido' => $request->apellido,
-            'telefono' => $request->telefono,
-            'cedula' => $request->cedula,
-            'correo_electronico' => $request->correo_electronico,
-            'password' =>$request->password, // Asegúrate de encriptar la contraseña
-            'rol' => $request->rol,
+    public function register(Request $request)
+    {
+        // Validación de datos
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:255',
+            'apellido' => 'required|string|max:255',
+            'telefono' => 'required|string|max:20',
+            'cedula' => 'required|string|max:10|unique:usuarios,cedula',
+            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+            'password' => 'required|string|min:6',
+            'rol' => 'required|in:empleado,admin,demo,owner', // Rol requerido
+            'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio', // Validar sitio si el rol es empleado
+            'id_plan' => 'required_if:rol,owner|exists:planes,id_plan', // Validar plan si el rol es owner
         ]);
 
-        // Si el usuario autenticado es un owner y el nuevo usuario es un empleado, asignar el empleado
-        if (Auth::check() && Auth::user()->rol === 'owner' && $usuario->rol === 'empleado') {
-            if ($request->has('sitio_id')) {
-                $usuario->owners()->attach(Auth::id(), ['sitio_id' => $request->sitio_id]);
-            } else {
-                // El sitio es requerido para empleados si el usuario autenticado es un owner
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Crear el usuario
+            $usuario = Usuario::create([
+                'nombre' => $request->nombre,
+                'apellido' => $request->apellido,
+                'telefono' => $request->telefono,
+                'cedula' => $request->cedula,
+                'correo_electronico' => $request->correo_electronico,
+                'password' => bcrypt($request->password), // Encriptar la contraseña
+                'rol' => $request->rol,
+                'id_plan' => $request->id_plan ?? null, // Asignar id_plan si existe
+            ]);
+
+            // Si el rol es 'owner', proceder con el cobro
+            if ($usuario->rol === 'owner' && $request->has('id_plan')) {
+                $paymentResult = $this->processPayment($request->id_plan, $usuario);
+
+                // Si el pago falla, rollback y retornar error
+                if (!$paymentResult['status']) {
+                    DB::rollBack();
+                    return response()->json(['errors' => 'Error en el proceso de pago. Inténtelo de nuevo.'], 500);
+                }
+            }
+
+            // Enviar correo de bienvenida (diferente según el rol)
+            try {
+                Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
+            } catch (\Exception $e) {
+                Log::error('Error al enviar correo: ' . $e->getMessage());
                 DB::rollBack();
-                return response()->json(['errors' => ['sitio_id' => 'El campo sitio_id es requerido para empleados']], 422);
+                return response()->json(['errors' => 'Error al enviar correo de bienvenida'], 500);
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al crear usuario: ' . $e->getMessage());
+            return response()->json(['errors' => 'Error al crear usuario'], 500);
+        }
+    }
+
+    //Funcion para procesar pago
+public function processPayment($planId, $usuario)
+{
+    // Obtener los detalles del plan
+    $plan = Planes::find($planId);
+
+    if (!$plan) {
+        Log::error('Plan no encontrado', ['plan_id' => $planId]);
+        return ['status' => false, 'message' => 'Plan no encontrado'];
+    }
+
+    try {
+        $provider = new PayPalClient;
+        $provider->setApiCredentials(config('paypal'));
+        $paypalToken = $provider->getAccessToken();
+
+        // Crear orden de PayPal
+        $response = $provider->createOrder([
+            "intent" => "CAPTURE",
+            "application_context" => [
+                "return_url" => route('paypal.payment.success', ['user_id' => $usuario->id]),
+                "cancel_url" => route('paypal.payment.cancel'),
+            ],
+            "purchase_units" => [
+                0 => [
+                    "amount" => [
+                        "currency_code" => "USD",
+                        "value" => $plan->price
+                    ]
+                ]
+            ]
+        ]);
+
+        // Verificar la respuesta
+        if (isset($response['id']) && $response['id'] != null) {
+            foreach ($response['links'] as $links) {
+                if ($links['rel'] == 'approve') {
+                    Log::info('Orden de PayPal creada exitosamente', ['order_id' => $response['id']]);
+                    // Redirigir al usuario a PayPal para completar el pago
+                    return ['status' => true, 'redirect_url' => $links['href']];
+                }
             }
         }
 
-        // Enviar el correo electrónico solo si el usuario se crea correctamente
-        try {
-            Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
-        } catch (\Exception $e) {
-            // Deshacer la creación del usuario en caso de error al enviar el correo
-            //log de errores
-            Log::error('Error al crear el usuario: ' . $e->getMessage(), [
-                'exception' => $e,
-            ]);
-            //rolback
-            DB::rollBack();
-            return response()->json(['errors' => 'Hubo un error al enviar el correo de bienvenida. Por favor, inténtelo de nuevo.'], 500);
-            
-        }
-
-        DB::commit();
-        return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
+        Log::error('Error al crear la orden de pago', ['response' => $response]);
+        return ['status' => false, 'message' => 'Error al crear la orden de pago'];
     } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json(['errors' => 'Hubo un error al crear el usuario. Por favor, inténtelo de nuevo.'], 500);
+        Log::error('Excepción durante el proceso de pago', ['exception' => $e->getMessage()]);
+        return ['status' => false, 'message' => 'Error en el servidor'];
     }
 }
-
+    
     /**
      * Editar la información del usuario.
      */
