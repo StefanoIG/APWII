@@ -133,7 +133,6 @@ class PlanController extends Controller
     }
 
     // Función para crear un producto en PayPal
-    // Función para crear un producto en PayPal
     private function crearProductoPayPal($token, Request $request)
     {
         $response = Http::withToken($token)
@@ -158,51 +157,63 @@ class PlanController extends Controller
     }
 
     // Función para crear el plan de suscripción en PayPal
-   // Función para crear el plan de suscripción en PayPal
-private function crearPlanSuscripcionPayPal($token, Request $request, $productId)
-{
-    // Definir el valor de taxes dentro de la función
-    $taxes = [
-        'percentage' => '15',
-        'inclusive' => false
-    ];
+    private function crearPlanSuscripcionPayPal($token, Request $request, $productId)
+    {
+        // Definir el valor de taxes dentro de la función
+        $taxes = [
+            'percentage' => '15',
+            'inclusive' => false
+        ];
 
-    // Preparar los datos para la solicitud
-    // Asegúrate de que el JSON de billing_cycles sea válido y secuencial
-    $billingCycles = json_decode($request->billing_cycles, true);
+        // Preparar los datos para la solicitud
+        $billingCycles = json_decode($request->billing_cycles, true);
 
-    // Validar y corregir la secuencia de billing_cycles
-    $correctedBillingCycles = [];
-    $sequence = 1;
+        // Validar y corregir la secuencia de billing_cycles
+        $correctedBillingCycles = [];
+        $sequence = 1;
 
-    foreach ($billingCycles as $cycle) {
-        $cycle['sequence'] = $sequence++;
-        $correctedBillingCycles[] = $cycle;
+        foreach ($billingCycles as $cycle) {
+            $cycle['sequence'] = $sequence++;
+            $correctedBillingCycles[] = $cycle;
+        }
+
+        $data = [
+            'product_id' => $productId,
+            'name' => $request->name,
+            'description' => $request->description ?? 'Descripción del plan',
+            'billing_cycles' => $correctedBillingCycles,
+            'payment_preferences' => json_decode($request->payment_preferences, true),
+            'taxes' => $taxes,
+        ];
+
+        // Realizar la solicitud para crear el plan de suscripción
+        $response = Http::withToken($token)
+            ->post("{$this->paypalBaseUrl}/v1/billing/plans", $data);
+
+        if ($response->successful()) {
+            $planData = $response->json();
+
+            // Aquí extraes la ID del plan generado por PayPal
+            $paypalPlanId = $planData['id'];
+
+            // Guardar la ID de PayPal en tu tabla 'planes'
+            $plan = Planes::where('product_id', $productId)->first();
+            if ($plan) {
+                $plan->id_paypal = $paypalPlanId;
+                $plan->save();
+            }
+
+            return $planData;
+        } else {
+            // Loggear el error en caso de que la solicitud falle
+            Log::error("Error al crear el plan de suscripción en PayPal", [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return null;
+        }
     }
 
-    $data = [
-        'product_id' => $productId,
-        'name' => $request->name,
-        'description' => $request->description ?? 'Descripción del plan',
-        'billing_cycles' => $correctedBillingCycles,
-        'payment_preferences' => json_decode($request->payment_preferences, true),
-        'taxes' => $taxes,
-    ];
-
-    // Realizar la solicitud para crear el plan de suscripción
-    $response = Http::withToken($token)
-        ->post("{$this->paypalBaseUrl}/v1/billing/plans", $data);
-
-    if (!$response->successful()) {
-        // Loggear el error en caso de que la solicitud falle
-        Log::error("Error al crear el plan de suscripción en PayPal", [
-            'status' => $response->status(),
-            'body' => $response->body(),
-        ]);
-    }
-
-    return $response->successful() ? $response->json() : null;
-}
 
 
 

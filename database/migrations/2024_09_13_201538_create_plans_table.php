@@ -23,6 +23,7 @@ return new class extends Migration
             $table->boolean('quantity_supported')->default(false); // Si el plan soporta cantidades
             $table->timestamps();
             $table->enum('prioridad', ['alta', 'media', 'baja'])->default('media');
+            $table->string('id_paypal', 50)->nullable(); // Campo para guardar la ID del plan de PayPal
             $table->softDeletes();
         });
     }
