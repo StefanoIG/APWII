@@ -86,7 +86,7 @@ class UsuarioController extends Controller
                 'telefono' => $request->telefono,
                 'cedula' => $request->cedula,
                 'correo_electronico' => $request->correo_electronico,
-                'password' => bcrypt($request->password),
+                'password' => $request->password,
                 'rol' => $request->rol,
                 'id_plan' => $request->id_plan ?? null,
                 'suscripcion' => 'pendiente', // Estado pendiente hasta confirmar el pago
@@ -405,7 +405,7 @@ class UsuarioController extends Controller
             );
 
             // Crear la URL con el token
-            $resetUrl = url("/reset-password?token={$token}&correo_electronico={$request->correo_electronico}");
+            $resetUrl = url("http://localhost:3000/auth/recovery?token={$token}&correo_electronico={$request->correo_electronico}");
 
             try {
                 // Enviar el correo con el enlace

@@ -37,10 +37,13 @@ Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para 
 Route::post('/forget', [UsuarioController::class, 'recoveryPassword']);
 Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
 
-
 //requets demo
 Route::post('/demo', [UsuarioController::class, 'requestDemo']);
-Route::get('/probar-lotes-expirados', [LoteController::class, 'verificarLotesExpirados']);
+
+
+
+Route::get('/planes', [PlanController::class, 'index']);
+Route::post('/planes', [PlanController::class, 'store']);
 
 //rutas protegidas
 Route::middleware('auth:api')->group(function () {
@@ -129,9 +132,8 @@ Route::middleware('auth:api')->group(function () {
 
 
     //rutas de planes
-    Route::get('/planes', [PlanController::class, 'index']);
+    
     Route::get('/planes/{id}', [PlanController::class, 'show']);
-    Route::post('/planes', [PlanController::class, 'store']);
     Route::put('/planes/{id}', [PlanController::class, 'update']);
 
     //ruta de promociones
