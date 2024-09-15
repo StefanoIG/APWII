@@ -31,23 +31,23 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
 
 1. **Instalar Laravel**: Si aún no tienes Laravel instalado, puedes hacerlo con:
 
-    ```bash
+  ```bash
     composer global require laravel/installer
-    ```
+   ```
 
 2. **Clonar el Repositorio**: Clona el repositorio o haz un fork:
 
-    ```bash
+  ```bash
     git clone https://github.com/StefanoIG/APWII/tree/main
-    ```
+  ```
 
-    O realiza un fork en [GitHub](https://github.com/StefanoIG/APWII/tree/main) y clónalo.
+  O realiza un fork en [GitHub](https://github.com/StefanoIG/APWII/tree/main) y clónalo.
 
 3. **Instalar Dependencias**: Navega a la carpeta del proyecto y ejecuta:
 
-    ```bash
+  ```bash
     composer install
-    ```
+  ```
 
 4. **Configurar el Archivo `.env`**: Copia el archivo de ejemplo y configura las variables necesarias:
 
@@ -84,27 +84,28 @@ Recuerda reemplazar `tu_correo_electronico@gmail.com` con tu dirección de corre
 
 6. **Verificar Extensiones de PhP**: Asegúrate de que la extensión ZIP esté habilitada en tu archivo php.ini. Esta extensión es necesaria para la integración con PayPal.
 
-    ```bash
+  ```bash
     extension=zip
-    ```
+  ```
 
-    Que esto este descomentado, es decir sin el ";"
+  Que esto este descomentado, es decir sin el ";"
 
-7. **Configurar Paypal**: Regístrate en PayPal Developer(<https://developer.paypal.com/>) y crea una nueva aplicación para obtener las credenciales de sandbox.Añade las siguientes variables al archivo .env:
+7. **Configurar Paypal**: Regístrate en PayPal Developer(<https://developer.paypal.com/>) y crea una nueva aplicación para obtener las credenciales de sandbox. Añade las siguientes variables al archivo .env:
 
-    ```bash
+  ```bash
         PAYPAL_MODE=sandbox
         PAYPAL_SANDBOX_CLIENT_ID=tu_client_id_aqui
         PAYPAL_SANDBOX_CLIENT_SECRET=tu_client_secret_aqui
         PAYPAL_BASE_URL=<https://api-m.sandbox.paypal.com
-    ```
+  ```
 
 8. **Ejecutar  Migraciones**:Configura la base de datos en env y luego ejecuta las migraciones con:
 
   ```bash
         php artisan migrate
-    ```
-  9. **Iniciar el Servidor**:Inicia el servidor de desarrollo con::
+  ```
+
+9. **Iniciar el Servidor**:Inicia el servidor de desarrollo con::
 
   ```bash
         php artisan serve

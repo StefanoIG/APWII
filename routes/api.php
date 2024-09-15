@@ -16,31 +16,8 @@ use App\Http\Controllers\PromocionController;
 use App\Http\Controllers\MetodoPagoController;
 
 
-//confirmar pagos
-Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
-Route::post('/rechazar-pago/{id}', [UsuarioController::class, 'rechazarPago'])->name('pago.rechazar');
 
-
-//rutas de planes
-Route::get('/planes', [PlanController::class, 'index']);
-Route::get('/planes/{id}', [PlanController::class, 'show']);
-Route::post('/planes', [PlanController::class, 'store']);
-Route::put('/planes/{id}', [PlanController::class, 'update']);
-
-//ruta de promociones
-Route::get('/promociones', [PromocionController::class, 'index']);
-Route::get('/promociones/{id}', [PromocionController::class, 'show']);
-Route::post('/promociones', [PromocionController::class, 'store']);
-Route::put('/promociones/{id}', [PromocionController::class, 'update']);
-Route::delete('/promociones/{id}', [PromocionController::class, 'destroy']);
-
-//rutas de metodos de pago
-Route::get('/metodos-pago', [MetodoPagoController::class, 'index']);
-Route::get('/metodos-pago/{id}', [MetodoPagoController::class, 'show']);
-Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
-Route::put('/metodos-pago/{id}', [MetodoPagoController::class, 'update']);
-Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
-
+//rutas de paypal publicas
 Route::get('/payment/success', [UsuarioController::class, 'paymentSuccess'])->name('paypal.payment.success');
 Route::get('/payment/cancel', [UsuarioController::class, 'paymentCancel'])->name('paypal.payment.cancel');
 Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->name('paypal.payment.failure');
@@ -48,10 +25,6 @@ Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->na
 
 //rutas chatbot
 Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
-Route::post('/questions', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
-Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
-
-
 
 //por ahora dejarla aqui
 Route::post('/sitios', [SitioController::class, 'store']);
@@ -71,6 +44,11 @@ Route::get('/probar-lotes-expirados', [LoteController::class, 'verificarLotesExp
 
 //rutas protegidas
 Route::middleware('auth:api')->group(function () {
+
+    //rutas chatbot
+    Route::post('/questions', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
+    Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
+
 
     //rutas de usuarios 
     Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
@@ -144,4 +122,29 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/etiquetas-pagination', [EtiquetaController::class, 'paginatedIndex']);
     Route::get('/comprobantes-pagination', [ComprobanteController::class, 'paginatedIndex']);
     Route::get('/retornos-pagination', [RetornoController::class, 'paginatedIndex']);
+
+    //rutas de confirmar pagos
+    Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
+    Route::post('/rechazar-pago/{id}', [UsuarioController::class, 'rechazarPago'])->name('pago.rechazar');
+
+
+    //rutas de planes
+    Route::get('/planes', [PlanController::class, 'index']);
+    Route::get('/planes/{id}', [PlanController::class, 'show']);
+    Route::post('/planes', [PlanController::class, 'store']);
+    Route::put('/planes/{id}', [PlanController::class, 'update']);
+
+    //ruta de promociones
+    Route::get('/promociones', [PromocionController::class, 'index']);
+    Route::get('/promociones/{id}', [PromocionController::class, 'show']);
+    Route::post('/promociones', [PromocionController::class, 'store']);
+    Route::put('/promociones/{id}', [PromocionController::class, 'update']);
+    Route::delete('/promociones/{id}', [PromocionController::class, 'destroy']);
+
+    //rutas de metodos de pago
+    Route::get('/metodos-pago', [MetodoPagoController::class, 'index']);
+    Route::get('/metodos-pago/{id}', [MetodoPagoController::class, 'show']);
+    Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
+    Route::put('/metodos-pago/{id}', [MetodoPagoController::class, 'update']);
+    Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
 });
