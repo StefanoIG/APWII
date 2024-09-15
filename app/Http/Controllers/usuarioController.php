@@ -70,7 +70,7 @@ class UsuarioController extends Controller
             'rol' => 'required|in:empleado,admin,demo,owner',
             'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio',
             'id_plan' => 'required_if:rol,owner|exists:planes,id_plan',
-            'metodo_pago' => 'required_if:rol,owner|in:1,2', // 1 = PayPal, 2 = Transferencia Bancaria
+            'metodo_pago' => 'required_if:rol,owner|in:1,2', // Añadir validación para el método de pago
         ]);
 
         if ($validator->fails()) {
@@ -92,51 +92,64 @@ class UsuarioController extends Controller
                 'suscripcion' => 'pendiente', // Estado pendiente hasta confirmar el pago
             ]);
 
-            // Si el rol es 'owner', proceder con el método de pago seleccionado
-            if ($usuario->rol === 'owner' && $request->has('id_plan') && $request->has('metodo_pago')) {
-
-                // Opción 1: Pago con PayPal
+            if ($usuario->rol === 'owner') {
                 if ($request->metodo_pago == 1) {
+                    // Opción 1: PayPal
                     $paymentResult = $this->processPayment($request->id_plan, $usuario);
 
-                    // Si el pago falla, rollback y retornar error
                     if (!$paymentResult['status']) {
                         DB::rollBack();
                         return response()->json(['errors' => 'Error en el proceso de pago. Inténtelo de nuevo.'], 500);
                     }
 
                     DB::commit();
-                    // Redirigir al usuario a PayPal
                     return redirect()->away($paymentResult['redirect_url']);
-
-                    // Opción 2: Transferencia Bancaria
                 } elseif ($request->metodo_pago == 2) {
-                    // Notificar a los administradores que se debe confirmar el pago
+                    // Opción 2: Transferencia Bancaria
+
+                    // Crear la factura antes de notificar a los administradores
+                    $plan = Planes::find($request->id_plan);
+                    $paymentPreferences = json_decode($plan->payment_preferences, true);
+                    $setupFee = $paymentPreferences['setup_fee']['value'];
+
+                    $factura = Factura::create([
+                        'usuario_id' => $usuario->id,
+                        'metodo_pago_id' => 2, // ID para transferencia bancaria
+                        'total' => $setupFee,
+                        'estado' => 'pendiente',
+                    ]);
+
+                    DetalleFactura::create([
+                        'factura_id' => $factura->id,
+                        'descripcion' => "Pago suscripcion",
+                        'cantidad' => 1,
+                        'precio_unitario' => $setupFee,
+                        'subtotal' => $setupFee,
+                    ]);
+
+                    // Notificar a los administradores
                     $admins = Usuario::where('rol', 'admin')->get();
                     foreach ($admins as $admin) {
-                        // Aquí puedes usar 
                         Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
                     }
 
                     // Enviar mensaje al usuario indicando que el pago será confirmado
-                    // Podrías enviar un correo también usando 
                     Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
 
                     DB::commit();
-                    //en caso de no ser owner enviar correo de WelcomeMail
-                    Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
                     return response()->json(['message' => 'Usuario creado exitosamente. Se te notificará por correo cuando tu pago sea confirmado.'], 201);
                 }
+            } else {
+                DB::commit();
+                return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
             }
-
-            DB::commit();
-            return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error al crear usuario: ' . $e->getMessage());
             return response()->json(['errors' => 'Error al crear usuario'], 500);
         }
     }
+
 
 
     public function confirmarPago($id)
@@ -148,7 +161,7 @@ class UsuarioController extends Controller
         }
 
         // Actualizar estado a confirmado
-        $factura->estado = 'confirmado';
+        $factura->estado = 'pagado';
         $factura->save();
 
         // Obtener el usuario asociado
@@ -509,7 +522,6 @@ class UsuarioController extends Controller
         // Contar la cantidad de demos activas
         $demoCount = Demo::where('isActive', true)->count();
 
-
         // Limitar la cantidad de demos activas
         $cantidadMaximaDemos = 5;
         if ($demoCount >= $cantidadMaximaDemos) {
@@ -547,10 +559,11 @@ class UsuarioController extends Controller
                 'rol' => 'demo',
             ]);
 
-            // Actualizar la tabla demo con el ID del usuario y marcar como activa
+            // Actualizar la tabla demo con el ID del usuario, marcar como activa y establecer la fecha de expiración
             $demoRequest->update([
                 'usuario_id' => $usuarioDemo->id,
                 'isActive' => true,
+                'demo_expiry_date' => now()->addDays(5), // Establecer la fecha de expiración a 5 días a partir de ahora
             ]);
 
             // Enviar el correo con la contraseña en texto plano
@@ -564,6 +577,7 @@ class UsuarioController extends Controller
             return response()->json(['errors' => 'Hubo un error al aprobar la demo. Por favor, inténtelo de nuevo.'], 500);
         }
     }
+
 
 
     //Negar demo

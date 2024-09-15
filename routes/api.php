@@ -15,6 +15,12 @@ use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PromocionController;
 use App\Http\Controllers\MetodoPagoController;
 
+
+//confirmar pagos
+Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
+Route::post('/rechazar-pago/{id}', [UsuarioController::class, 'rechazarPago'])->name('pago.rechazar');
+
+
 //rutas de planes
 Route::get('/planes', [PlanController::class, 'index']);
 Route::get('/planes/{id}', [PlanController::class, 'show']);
