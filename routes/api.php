@@ -12,7 +12,8 @@ use App\Http\Controllers\RetornoController;
 use App\Http\Controllers\SitioController;
 use App\Http\Controllers\ChatBotController;
 use App\Http\Controllers\PlanController;
-use App\Http\Controllers\PayPalController;
+use App\Http\Controllers\PromocionController;
+use App\Http\Controllers\MetodoPagoController;
 
 //rutas de planes
 Route::get('/planes', [PlanController::class, 'index']);
@@ -20,15 +21,23 @@ Route::get('/planes/{id}', [PlanController::class, 'show']);
 Route::post('/planes', [PlanController::class, 'store']);
 Route::put('/planes/{id}', [PlanController::class, 'update']);
 
-//rutas paypal
-Route::get('paypal', [PayPalController::class, 'index'])->name('paypal');
-Route::get('paypal/payment', [PayPalController::class, 'payment'])->name('paypal.payment');
-Route::get('paypal/payment/success', [PayPalController::class, 'paymentSuccess'])->name('paypal.payment.success');
-Route::get('paypal/payment/cancel', [PayPalController::class, 'paymentCancel'])->name('paypal.payment/cancel');
-Route::get('paypal/payment/success', [PayPalController::class, 'paymentSuccess'])->name('paypal.payment.success');
-Route::get('paypal/payment/cancel', [PayPalController::class, 'paymentCancel'])->name('paypal.payment.cancel');
+//ruta de promociones
+Route::get('/promociones', [PromocionController::class, 'index']);
+Route::get('/promociones/{id}', [PromocionController::class, 'show']);
+Route::post('/promociones', [PromocionController::class, 'store']);
+Route::put('/promociones/{id}', [PromocionController::class, 'update']);
+Route::delete('/promociones/{id}', [PromocionController::class, 'destroy']);
 
+//rutas de metodos de pago
+Route::get('/metodos-pago', [MetodoPagoController::class, 'index']);
+Route::get('/metodos-pago/{id}', [MetodoPagoController::class, 'show']);
+Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
+Route::put('/metodos-pago/{id}', [MetodoPagoController::class, 'update']);
+Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
 
+Route::get('/payment/success', [UsuarioController::class, 'paymentSuccess'])->name('paypal.payment.success');
+Route::get('/payment/cancel', [UsuarioController::class, 'paymentCancel'])->name('paypal.payment.cancel');
+Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->name('paypal.payment.failure');
 
 
 //rutas chatbot

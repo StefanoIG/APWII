@@ -12,6 +12,7 @@ class Planes extends Model
 
     //definir pk
     protected $primaryKey = 'id_plan';
+
     protected $fillable = [
         'product_id',
         'name',
@@ -20,7 +21,8 @@ class Planes extends Model
         'billing_cycles',
         'payment_preferences',
         'taxes',
-        'quantity_supported'
+        'quantity_supported',
+        'id_paypal',
     ];
 
     public function users()

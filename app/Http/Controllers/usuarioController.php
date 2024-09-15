@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use App\Mail\RecoveryPassword;
 use App\Mail\WelcomeMail;
+use App\Mail\OwnerMail;
 use App\Mail\DemoMail;
 use App\Mail\RequestDemoMail;
 use App\Models\Demo;
@@ -19,8 +20,10 @@ use App\Mail\DemoRejectedMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use App\Models\Planes;
-use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
+use App\Models\Factura;
+use App\Models\DetalleFactura;
 
+use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
 
 class UsuarioController extends Controller
 {
@@ -58,9 +61,10 @@ class UsuarioController extends Controller
             'cedula' => 'required|string|max:10|unique:usuarios,cedula',
             'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
             'password' => 'required|string|min:6',
-            'rol' => 'required|in:empleado,admin,demo,owner', // Rol requerido
-            'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio', // Validar sitio si el rol es empleado
-            'id_plan' => 'required_if:rol,owner|exists:planes,id_plan', // Validar plan si el rol es owner
+            'rol' => 'required|in:empleado,admin,demo,owner',
+            'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio',
+            'id_plan' => 'required_if:rol,owner|exists:planes,id_plan',
+            'metodo_pago' => 'required_if:rol,owner|in:1,2', // 1 = PayPal, 2 = Transferencia Bancaria
         ]);
 
         if ($validator->fails()) {
@@ -69,38 +73,50 @@ class UsuarioController extends Controller
 
         DB::beginTransaction();
         try {
-            // Crear el usuario
+            // Crear el usuario temporalmente
             $usuario = Usuario::create([
                 'nombre' => $request->nombre,
                 'apellido' => $request->apellido,
                 'telefono' => $request->telefono,
                 'cedula' => $request->cedula,
                 'correo_electronico' => $request->correo_electronico,
-                'password' => bcrypt($request->password), // Encriptar la contraseña
+                'password' => bcrypt($request->password),
                 'rol' => $request->rol,
-                'id_plan' => $request->id_plan ?? null, // Asignar id_plan si existe
+                'id_plan' => $request->id_plan ?? null,
+                'suscripcion' => 'pendiente', // Estado pendiente hasta confirmar el pago
             ]);
 
-            // Si el rol es 'owner', proceder con el cobro
-            if ($usuario->rol === 'owner' && $request->has('id_plan')) {
-                $paymentResult = $this->processPayment($request->id_plan, $usuario);
+            // Si el rol es 'owner', proceder con el método de pago seleccionado
+            if ($usuario->rol === 'owner' && $request->has('id_plan') && $request->has('metodo_pago')) {
 
-                // Si el pago falla, rollback y retornar error
-                if (!$paymentResult['status']) {
-                    DB::rollBack();
-                    return response()->json(['errors' => 'Error en el proceso de pago. Inténtelo de nuevo.'], 500);
+                // Opción 1: Pago con PayPal
+                if ($request->metodo_pago == 1) {
+                    $paymentResult = $this->processPayment($request->id_plan, $usuario);
+
+                    // Si el pago falla, rollback y retornar error
+                    if (!$paymentResult['status']) {
+                        DB::rollBack();
+                        return response()->json(['errors' => 'Error en el proceso de pago. Inténtelo de nuevo.'], 500);
+                    }
+
+                    DB::commit();
+                    // Redirigir al usuario a PayPal
+                    return redirect()->away($paymentResult['redirect_url']);
+
+                    // Opción 2: Transferencia Bancaria
+                } elseif ($request->metodo_pago == 2) {
+                    // Notificar a los administradores que se debe confirmar el pago
+                    $admins = Usuario::where('rol', 'admin')->get();
+                    foreach ($admins as $admin) {
+                        // Aquí puedes usar Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
+                    }
+
+                    // Enviar mensaje al usuario indicando que el pago será confirmado
+                    // Podrías enviar un correo también usando Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia());
+
+                    DB::commit();
+                    return response()->json(['message' => 'Usuario creado exitosamente. Se te notificará por correo cuando tu pago sea confirmado.'], 201);
                 }
-                 // Redirigir al usuario a PayPal
-                 return redirect()->away($paymentResult['redirect_url']);
-            }
-
-            // Enviar correo de bienvenida 
-            try {
-                Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
-            } catch (\Exception $e) {
-                Log::error('Error al enviar correo: ' . $e->getMessage());
-                DB::rollBack();
-                return response()->json(['errors' => 'Error al enviar correo de bienvenida'], 500);
             }
 
             DB::commit();
@@ -112,82 +128,141 @@ class UsuarioController extends Controller
         }
     }
 
+
     //Funcion para procesar pago
     public function processPayment($planId, $usuario)
-{
-    $plan = Planes::find($planId);
+    {
+        $plan = Planes::find($planId);
 
-    if (!$plan) {
-        Log::error('Plan no encontrado', ['plan_id' => $planId]);
-        return ['status' => false, 'message' => 'Plan no encontrado'];
-    }
+        if (!$plan) {
+            Log::error('Plan no encontrado', ['plan_id' => $planId]);
+            return ['status' => false, 'message' => 'Plan no encontrado'];
+        }
 
-    try {
-        $provider = new PayPalClient;
-        $provider->setApiCredentials(config('paypal'));
-        $paypalToken = $provider->getAccessToken();
+        try {
+            $provider = new PayPalClient;
+            $provider->setApiCredentials(config('paypal'));
+            $paypalToken = $provider->getAccessToken();
 
-        // Crear orden de PayPal
-        $response = $provider->createSubscription([
-            "plan_id" => $plan->id_plan,  // Plan de PayPal
-            "application_context" => [
-                "return_url" => route('paypal.payment.success', ['user_id' => $usuario->id]),
-                "cancel_url" => route('paypal.payment.cancel'),
-            ]
-        ]);
-        
+            // Crear suscripción en PayPal utilizando el id_paypal del plan
+            $response = $provider->createSubscription([
+                "plan_id" => $plan->id_paypal,  // ID del plan en PayPal
+                "application_context" => [
+                    "brand_name" => "InventoryPro",
+                    "locale" => "es-ES",
+                    "user_action" => "SUBSCRIBE_NOW",
+                    "return_url" => route('paypal.payment.success', ['user_id' => $usuario->id]),
+                    "cancel_url" => route('paypal.payment.cancel'),
+                ],
+                "subscriber" => [
+                    "name" => [
+                        "given_name" => $usuario->nombre,
+                        "surname" => $usuario->apellido,
+                    ],
+                    "email_address" => $usuario->correo_electronico,
+                ],
+                "quantity" => "1", // Cantidad fija o ajustar según tu lógica
+            ]);
 
-        if (isset($response['id']) && $response['id'] != null) {
-            foreach ($response['links'] as $links) {
-                if ($links['rel'] == 'approve') {
-                    Log::info('Orden de PayPal creada exitosamente', ['order_id' => $response['id']]);
-                    return ['status' => true, 'redirect_url' => $links['href']];
+            // Buscar el enlace de aprobación
+            if (isset($response['id']) && $response['id'] != null) {
+                $orderIdPayPal = $response['id']; // Capturamos el ID de la orden en PayPal
+
+                // Extraer el valor de setup_fee['value'] de payment_preferences del plan
+                $paymentPreferences = json_decode($plan->payment_preferences, true); // Asegúrate de que payment_preferences esté en formato JSON en la base de datos
+                $setupFee = $paymentPreferences['setup_fee']['value']; // Obtener el valor de setup_fee
+
+                // Crear la factura antes de redirigir a PayPal
+                $factura = Factura::create([
+                    'usuario_id' => $usuario->id,  // Cambiado a usuario_id
+                    'metodo_pago_id' => 1, // Cambiar si se necesita ajustar el ID correspondiente a PayPal
+                    'order_id_paypal' => $orderIdPayPal,
+                    'total' => $setupFee, // Usar setup_fee['value'] como el total del plan
+                    'estado' => 'pendiente',
+                ]);
+
+
+
+                // Crear el detalle de la factura
+                DetalleFactura::create([
+                    'factura_id' => $factura->id,
+                    'descripcion' => "Pago suscripcion", // Descripción del plan
+                    'cantidad' => 1, // En este caso solo 1 suscripción
+                    'precio_unitario' => $setupFee, // Usar el setup_fee
+                    'subtotal' => $setupFee, // Total = cantidad * precio_unitario
+                ]);
+
+                // Redirigir al usuario para aprobar el pago
+                foreach ($response['links'] as $link) {
+                    if ($link['rel'] == 'approve') {
+                        Log::info('Orden de PayPal creada exitosamente', ['order_id' => $response['id']]);
+                        return ['status' => true, 'redirect_url' => $link['href']];
+                    }
                 }
             }
-        }
 
-        Log::error('Error al crear la orden de pago', ['response' => $response]);
-        return ['status' => false, 'message' => 'Error al crear la orden de pago'];
-    } catch (\Exception $e) {
-        Log::error('Excepción durante el proceso de pago', ['exception' => $e->getMessage()]);
-        return ['status' => false, 'message' => 'Error en el servidor'];
-    }
-}
-
-
-//funcion si el pago fue exitoso
-public function paymentSuccess(Request $request)
-{
-    $userId = $request->input('user_id');
-    $usuario = Usuario::find($userId);
-
-    $provider = new PayPalClient;
-    $provider->setApiCredentials(config('paypal'));
-    $paypalToken = $provider->getAccessToken();
-
-    $paymentId = $request->input('paymentId');
-    $payerId = $request->input('PayerID');
-
-    $response = $provider->capturePaymentOrder($paymentId, $payerId);
-
-    if ($response['status'] === 'COMPLETED') {
-        DB::beginTransaction();
-        try {
-            // Actualizar el estado de la suscripción
-            $usuario->suscripcion = 'activa';
-            $usuario->save();
-
-            DB::commit();
-            return redirect('/payment/success'); // Redirigir a la página de éxito
+            Log::error('Error al crear la orden de pago', ['response' => $response]);
+            return ['status' => false, 'message' => 'Error al crear la orden de pago'];
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error al confirmar el pago: ' . $e->getMessage());
-            return redirect('/payment/failure'); // Redirigir a la página de error
+            Log::error('Excepción durante el proceso de pago', ['exception' => $e->getMessage()]);
+            return ['status' => false, 'message' => 'Error en el servidor'];
         }
-    } else {
-        return redirect('/payment/failure'); // Redirigir a la página de error
     }
-}
+
+
+
+
+
+    //funcion si el pago fue exitoso
+    public function paymentSuccess(Request $request)
+    {
+        $userId = $request->input('user_id');
+        $usuario = Usuario::find($userId);
+
+        if (!$usuario) {
+            return response()->json(['status' => 'error', 'message' => 'Usuario no encontrado'], 404);
+        }
+
+        // Buscar la factura pendiente del usuario
+        $factura = Factura::where('usuario_id', $usuario->id)
+            ->where('estado', 'pendiente')
+            ->whereNotNull('order_id_paypal')
+            ->first();
+
+        if (!$factura) {
+            return response()->json(['status' => 'error', 'message' => 'Factura no encontrada'], 404);
+        }
+
+        // Actualizar el estado de la factura y la fecha de pago
+        $factura->estado = 'pagado';
+        $factura->fecha_pago = now();
+        $factura->save();
+
+        // Actualizar el estado del usuario a 'habilitado'
+        $usuario->estado = 'habilitado';
+        $usuario->save();
+
+        // Enviar correo al owner
+        Mail::to($usuario->correo_electronico)->send(new OwnerMail($usuario));
+
+        return response()->json(['status' => 'success', 'message' => 'Suscripción activada correctamente']);
+    }
+
+
+
+    public function paymentCancel()
+    {
+        return response()->json(['status' => 'error', 'message' => 'Pago cancelado'], 400);
+    }
+
+    public function paymentFailure()
+    {
+        return response()->json(['status' => 'error', 'message' => 'Error en el pago. Inténtelo de nuevo.'], 500);
+    }
+
+
+
+
 
 
     /**
