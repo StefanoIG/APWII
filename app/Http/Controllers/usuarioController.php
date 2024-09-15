@@ -10,11 +10,17 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+//mails
 use App\Mail\RecoveryPassword;
 use App\Mail\WelcomeMail;
 use App\Mail\OwnerMail;
 use App\Mail\DemoMail;
 use App\Mail\RequestDemoMail;
+use App\Mail\ConfirmarPagoTransferencia;
+use App\Mail\PagoPendienteTransferencia;
+use App\Mail\ConfirmacionPagoMail;
+use App\Mail\RechazoPagoMail;
+
 use App\Models\Demo;
 use App\Mail\DemoRejectedMail;
 use Illuminate\Support\Facades\Mail;
@@ -108,13 +114,17 @@ class UsuarioController extends Controller
                     // Notificar a los administradores que se debe confirmar el pago
                     $admins = Usuario::where('rol', 'admin')->get();
                     foreach ($admins as $admin) {
-                        // Aquí puedes usar Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
+                        // Aquí puedes usar 
+                        Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
                     }
 
                     // Enviar mensaje al usuario indicando que el pago será confirmado
-                    // Podrías enviar un correo también usando Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia());
+                    // Podrías enviar un correo también usando 
+                    Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
 
                     DB::commit();
+                    //en caso de no ser owner enviar correo de WelcomeMail
+                    Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
                     return response()->json(['message' => 'Usuario creado exitosamente. Se te notificará por correo cuando tu pago sea confirmado.'], 201);
                 }
             }
@@ -126,6 +136,49 @@ class UsuarioController extends Controller
             Log::error('Error al crear usuario: ' . $e->getMessage());
             return response()->json(['errors' => 'Error al crear usuario'], 500);
         }
+    }
+
+
+    public function confirmarPago($id)
+    {
+        // Buscar la factura correspondiente
+        $factura = Factura::find($id);
+        if (!$factura) {
+            return response()->json(['error' => 'Factura no encontrada'], 404);
+        }
+
+        // Actualizar estado a confirmado
+        $factura->estado = 'confirmado';
+        $factura->save();
+
+        // Obtener el usuario asociado
+        $usuario = Usuario::find($factura->usuario_id);
+
+        // Enviar correo de confirmación
+        Mail::to($usuario->correo_electronico)->send(new ConfirmacionPagoMail($usuario));
+
+        return response()->json(['message' => 'Pago confirmado y correo enviado'], 200);
+    }
+
+    public function rechazarPago($id)
+    {
+        // Buscar la factura correspondiente
+        $factura = Factura::find($id);
+        if (!$factura) {
+            return response()->json(['error' => 'Factura no encontrada'], 404);
+        }
+
+        // Actualizar estado a rechazado
+        $factura->estado = 'rechazado';
+        $factura->save();
+
+        // Obtener el usuario asociado
+        $usuario = Usuario::find($factura->usuario_id);
+
+        // Enviar correo de rechazo
+        Mail::to($usuario->correo_electronico)->send(new RechazoPagoMail($usuario));
+
+        return response()->json(['message' => 'Pago rechazado y correo enviado'], 200);
     }
 
 
