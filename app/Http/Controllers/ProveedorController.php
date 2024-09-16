@@ -68,11 +68,12 @@ class ProveedorController extends Controller
             'telefono' => 'required|string|max:255',
             'Cuidad' => 'required|string|max:255',
             'Activo' => 'required|boolean',
-            'isActive' => 'required|boolean',
         ]);
 
         //Si la validacion falla
         if ($validator->fails()) {
+            //log con errores
+
             return response()->json($validator->errors(), 400);
         }
 

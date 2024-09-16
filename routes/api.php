@@ -11,6 +11,7 @@ use App\Http\Controllers\ComprobanteController;
 use App\Http\Controllers\RetornoController;
 use App\Http\Controllers\SitioController;
 use App\Http\Controllers\ChatBotController;
+use App\Http\Controllers\FacturaController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PromocionController;
 use App\Http\Controllers\MetodoPagoController;
@@ -22,6 +23,7 @@ Route::get('/payment/success', [UsuarioController::class, 'paymentSuccess'])->na
 Route::get('/payment/cancel', [UsuarioController::class, 'paymentCancel'])->name('paypal.payment.cancel');
 Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->name('paypal.payment.failure');
 
+Route::get('/planes', [PlanController::class, 'index']);
 
 //rutas chatbot
 Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
@@ -41,9 +43,10 @@ Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
 Route::post('/demo', [UsuarioController::class, 'requestDemo']);
 
 
+Route::get('/proveedores-pagination', [ProveedorController::class, 'paginatedIndex']);
+Route::post('/proveedor', [ProveedorController::class, 'store']);
 
-Route::get('/planes', [PlanController::class, 'index']);
-Route::post('/planes', [PlanController::class, 'store']);
+
 
 //rutas protegidas
 Route::middleware('auth:api')->group(function () {
@@ -72,7 +75,6 @@ Route::middleware('auth:api')->group(function () {
     //rutas de proveedores
     Route::get('/proveedores', [ProveedorController::class, 'index']);
     Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
-    Route::post('/proveedor', [ProveedorController::class, 'store']);
     Route::put('/proveedores/{id}', [ProveedorController::class, 'update']);
     Route::delete('/proveedores/{id}', [ProveedorController::class, 'destroy']);
 
@@ -94,8 +96,8 @@ Route::middleware('auth:api')->group(function () {
 
     //rutas de productos
     Route::get('/productos/{id}', [ProductoController::class, 'show']);
-    Route::post('/productos', [ProductoController::class, 'store']);
     Route::get('/productos', [ProductoController::class, 'index']);
+    Route::post('/productos', [ProductoController::class, 'store']);
 
     //rutas de retorno
     Route::get('/retornos', [RetornoController::class, 'index']);
@@ -117,14 +119,15 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/BC-Lote', [LoteController::class, 'showByCodigoLote']);
 
     //rutas de paginacion
+    Route::get('/productos-pagination', [ProductoController::class, 'paginatedIndex']);
     Route::get('/lotes-pagination', [LoteController::class, 'paginatedIndex']);
     Route::get('/sitios-pagination', [SitioController::class, 'paginatedIndex']);
-    Route::get('/productos-pagination', [ProductoController::class, 'paginatedIndex']);
-    Route::get('/proveedores-pagination', [ProveedorController::class, 'paginatedIndex']);
     Route::get('/usuarios-pagination', [UsuarioController::class, 'paginatedIndex']);
     Route::get('/etiquetas-pagination', [EtiquetaController::class, 'paginatedIndex']);
     Route::get('/comprobantes-pagination', [ComprobanteController::class, 'paginatedIndex']);
     Route::get('/retornos-pagination', [RetornoController::class, 'paginatedIndex']);
+    Route::get('/facturas-pagination', [FacturaController::class, 'paginatedIndex']);
+    Route::get('/metodo-pagination', [MetodoPagoController::class, 'paginatedIndex']);
 
     //rutas de confirmar pagos
     Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
@@ -133,6 +136,7 @@ Route::middleware('auth:api')->group(function () {
 
     //rutas de planes
     
+    Route::post('/planes', [PlanController::class, 'store']);
     Route::get('/planes/{id}', [PlanController::class, 'show']);
     Route::put('/planes/{id}', [PlanController::class, 'update']);
 

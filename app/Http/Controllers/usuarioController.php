@@ -93,7 +93,7 @@ class UsuarioController extends Controller
             ]);
 
             if ($usuario->rol === 'owner') {
-                if ($request->metodo_pago == 1) {
+                if ($request->metodo_pago == 2) {
                     // Opción 1: PayPal
                     $paymentResult = $this->processPayment($request->id_plan, $usuario);
 
@@ -103,8 +103,8 @@ class UsuarioController extends Controller
                     }
 
                     DB::commit();
-                    return redirect()->away($paymentResult['redirect_url']);
-                } elseif ($request->metodo_pago == 2) {
+                    return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
+                } elseif ($request->metodo_pago == 1) {
                     // Opción 2: Transferencia Bancaria
 
                     // Crear la factura antes de notificar a los administradores

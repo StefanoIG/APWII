@@ -97,35 +97,55 @@ class SitioController extends Controller
     {
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
+            'nombre_sitio' => 'sometimes|string|max:255',
+            'direccion' => 'sometimes|string|max:255',
+            'ciudad' => 'sometimes|string|max:255',
+            'pais' => 'sometimes|string|max:255',
             'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
             'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
         ]);
-    
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-    
+
         // Obtener los datos validados
         $validatedData = $validator->validated();
-    
+
         // Construir la consulta con los filtros opcionales
-        $query = Lote::query();
-    
+        $query = Sitio::query();
+
+        if (isset($validatedData['nombre_sitio'])) {
+            $query->where('nombre_sitio', 'like', '%' . $validatedData['nombre_sitio'] . '%');
+        }
+
+        if (isset($validatedData['direccion'])) {
+            $query->where('direccion', 'like', '%' . $validatedData['direccion'] . '%');
+        }
+
+        if (isset($validatedData['ciudad'])) {
+            $query->where('ciudad', 'like', '%' . $validatedData['ciudad'] . '%');
+        }
+
+        if (isset($validatedData['pais'])) {
+            $query->where('pais', 'like', '%' . $validatedData['pais'] . '%');
+        }
+
         // Filtrar por deleted_at
         if (isset($validatedData['deleted_at'])) {
             if ($validatedData['deleted_at']) {
-                $query->onlyTrashed(); // Solo lotes eliminados
+                $query->onlyTrashed(); // Solo sitios eliminados
             } else {
-                $query->withTrashed(); // Todos los lotes, incluidos los eliminados
+                $query->withTrashed(); // Todos los sitios, incluidos los eliminados
             }
         }
-    
+
         // Obtener el número de resultados por página, por defecto 15
         $perPage = $validatedData['per_page'] ?? 15;
-    
+
         // Obtener los resultados paginados
-        $lotes = $query->paginate($perPage);
-    
-        return response()->json($lotes);
+        $sitios = $query->paginate($perPage);
+
+        return response()->json($sitios);
     }
 }
