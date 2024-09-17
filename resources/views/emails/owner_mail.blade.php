@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperación de Contraseña</title>
+    <title>Bienvenido a InventoryPro</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -27,14 +27,10 @@
             text-align: center;
         }
         .header {
-            background-color: #007BFF;
+            background-color: #4CAF50;
             color: white;
             padding: 15px;
             border-radius: 10px 10px 0 0;
-        }
-        .header img {
-            max-width: 100px;
-            margin-bottom: 20px;
         }
         .header h1 {
             margin: 0;
@@ -43,51 +39,40 @@
         .content {
             padding: 20px 0;
         }
-        .button {
-            background-color: #007BFF;
+        .btn {
+            background-color: #4CAF50;
             color: white;
             padding: 10px 20px;
             border-radius: 5px;
             text-decoration: none;
             display: inline-block;
             margin-top: 20px;
-            font-weight: bold;
         }
-        .button:hover {
-            background-color: #0056b3;
+        .btn:hover {
+            background-color: #45a049;
         }
         .footer {
             padding-top: 20px;
             font-size: 12px;
             color: #bbb;
         }
-        .footer a {
-            color: #007BFF;
-            text-decoration: none;
-        }
-        .footer a:hover {
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <img src="{{ asset('images/logo.png') }}" alt="Logo">
-            <h1>Recuperación de Contraseña</h1>
+            <h1>¡Bienvenido a InventoryPro!</h1>
         </div>
         <div class="content">
-            <p>Hola, {{ $nombre }}</p>
-            <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para restablecerla:</p>
-            <p><a href="{{ $resetUrl }}" class="button">Restablecer Contraseña</a></p>
-            <p>Este enlace expirará en 60 minutos.</p>
-            <p>Si no solicitaste un restablecimiento de contraseña, no es necesario que hagas nada.</p>
+            <p>Hola {{ $owner->nombre }},</p>
+            <p>Gracias por registrarte en nuestra plataforma. Actualmente estamos procesando tu suscripción.</p>
+            <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+            <p>Saludos cordiales,</p>
+            <p>El equipo de InventoryPro</p>
+            <a href="#" class="btn">Contactar Soporte</a>
         </div>
         <div class="footer">
-            <p>Si tienes alguna pregunta, por favor contacta a nuestro <a href="mailto:soporte@example.com">soporte</a>.</p>
             <p>&copy; 2024 InventoryPro. Todos los derechos reservados.</p>
-            <br>
-            <p>by InventoryPro</p>
         </div>
     </div>
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperación de Contraseña</title>
+    <title>Pago Rechazado</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -27,14 +27,10 @@
             text-align: center;
         }
         .header {
-            background-color: #007BFF;
+            background-color: #dc3545;
             color: white;
             padding: 15px;
             border-radius: 10px 10px 0 0;
-        }
-        .header img {
-            max-width: 100px;
-            margin-bottom: 20px;
         }
         .header h1 {
             margin: 0;
@@ -43,8 +39,8 @@
         .content {
             padding: 20px 0;
         }
-        .button {
-            background-color: #007BFF;
+        .btn {
+            background-color: #dc3545;
             color: white;
             padding: 10px 20px;
             border-radius: 5px;
@@ -53,41 +49,29 @@
             margin-top: 20px;
             font-weight: bold;
         }
-        .button:hover {
-            background-color: #0056b3;
+        .btn:hover {
+            background-color: #c82333;
         }
         .footer {
             padding-top: 20px;
             font-size: 12px;
             color: #bbb;
         }
-        .footer a {
-            color: #007BFF;
-            text-decoration: none;
-        }
-        .footer a:hover {
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <img src="{{ asset('images/logo.png') }}" alt="Logo">
-            <h1>Recuperación de Contraseña</h1>
+            <h1>Pago Rechazado</h1>
         </div>
         <div class="content">
-            <p>Hola, {{ $nombre }}</p>
-            <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para restablecerla:</p>
-            <p><a href="{{ $resetUrl }}" class="button">Restablecer Contraseña</a></p>
-            <p>Este enlace expirará en 60 minutos.</p>
-            <p>Si no solicitaste un restablecimiento de contraseña, no es necesario que hagas nada.</p>
+            <p>Hola {{ $usuario->nombre }},</p>
+            <p>Lo sentimos, pero tu pago ha sido rechazado. Si crees que esto es un error o necesitas más información, no dudes en contactarnos.</p>
+            <p>Gracias por tu interés en nuestro servicio.</p>
+            <a href="#" class="btn">Contactar Soporte</a>
         </div>
         <div class="footer">
-            <p>Si tienes alguna pregunta, por favor contacta a nuestro <a href="mailto:soporte@example.com">soporte</a>.</p>
             <p>&copy; 2024 InventoryPro. Todos los derechos reservados.</p>
-            <br>
-            <p>by InventoryPro</p>
         </div>
     </div>
 </body>

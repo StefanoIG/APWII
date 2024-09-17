@@ -54,3 +54,4 @@ networks:
 volumes:
     sail-pgsql:
         driver: local
+        
