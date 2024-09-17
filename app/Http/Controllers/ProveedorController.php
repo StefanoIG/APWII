@@ -5,19 +5,68 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Proveedor;
-//validator
 use Illuminate\Support\Facades\Validator;
-
+use Illuminate\Support\Facades\Auth;
 
 class ProveedorController extends Controller
 {
+    // Verifica si el usuario tiene un permiso específico
+    private function verificarPermiso($permisoNombre)
+    {
+        $user = Auth::user();
+        $roles = $user->roles;
+
+        foreach ($roles as $rol) {
+            if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Verifica si el usuario tiene un rol específico
+    private function verificarRol($rolNombre)
+    {
+        $user = Auth::user();
+        $roles = $user->roles;
+
+        foreach ($roles as $rol) {
+            if ($rol->nombre === $rolNombre) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        //Retorna todos los proveedores
-        return Proveedor::all();
+        $user = Auth::user();
+
+        // Si el usuario es un empleado, filtrar los proveedores relacionados con su sitio_id
+        if ($this->verificarRol('Empleado')) {
+            $proveedores = Proveedor::where('sitio_id', $user->sitio_id)->get();
+            return response()->json($proveedores);
+        }
+
+        // Si el usuario es owner, filtrar los proveedores creados por el usuario
+        if ($this->verificarRol('Owner')) {
+            $proveedores = Proveedor::where('created_by', $user->id)->get();
+            return response()->json($proveedores);
+        }
+
+        // Si el usuario es admin, puede ver todos los proveedores
+        if ($this->verificarRol('Admin')) {
+            $proveedores = Proveedor::all();
+            return response()->json($proveedores);
+        }
+
+        // Si no tiene ningún rol relevante, devolver un error
+        return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
     }
 
     /**
@@ -25,7 +74,11 @@ class ProveedorController extends Controller
      */
     public function store(Request $request)
     {
-        //Validacion de los datos
+        if (!$this->verificarPermiso('Puede crear proveedores')) {
+            return response()->json(['error' => 'No tienes permiso para crear proveedores'], 403);
+        }
+
+        // Validación de los datos
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
             'direccion' => 'required|string|max:255',
@@ -36,14 +89,14 @@ class ProveedorController extends Controller
             'isActive' => 'required|boolean',
         ]);
 
-        //Si la validacion falla
+        // Si la validación falla
         if ($validator->fails()) {
             return response()->json($validator->errors(), 400);
         }
 
-        //Si la validacion es correcta
+        // Crear el proveedor
         $proveedor = Proveedor::create($request->all());
-        return response()->json(['message' => 'Proveedor Creado correctamente', $proveedor], 200);
+        return response()->json(['message' => 'Proveedor creado correctamente', $proveedor], 200);
     }
 
     /**
@@ -51,8 +104,19 @@ class ProveedorController extends Controller
      */
     public function show(string $id)
     {
-        //Mostrar un proveedor en base a la id que se envia
-        return Proveedor::find($id);
+        $user = Auth::user();
+        $proveedor = Proveedor::find($id);
+
+        // Verificar permisos de visualización
+        if ($this->verificarRol('Empleado') && $proveedor->sitio_id !== $user->sitio_id) {
+            return response()->json(['error' => 'No tienes permiso para ver este proveedor'], 403);
+        }
+
+        if ($this->verificarRol('Owner') && $proveedor->created_by !== $user->id) {
+            return response()->json(['error' => 'No tienes permiso para ver este proveedor'], 403);
+        }
+
+        return response()->json($proveedor);
     }
 
     /**
@@ -60,7 +124,14 @@ class ProveedorController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //Validacion de los datos
+        $proveedor = Proveedor::find($id);
+
+        // Verificar permisos de edición
+        if ($this->verificarRol('Empleado') || ($this->verificarRol('Owner') && $proveedor->created_by !== Auth::user()->id)) {
+            return response()->json(['error' => 'No tienes permiso para actualizar este proveedor'], 403);
+        }
+
+        // Validación de los datos
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
             'direccion' => 'required|string|max:255',
@@ -70,15 +141,12 @@ class ProveedorController extends Controller
             'Activo' => 'required|boolean',
         ]);
 
-        //Si la validacion falla
+        // Si la validación falla
         if ($validator->fails()) {
-            //log con errores
-
             return response()->json($validator->errors(), 400);
         }
 
-        //Si la validacion es correcta
-        $proveedor = Proveedor::find($id);
+        // Actualizar el proveedor
         $proveedor->update($request->all());
         return response()->json(['message' => 'Proveedor actualizado correctamente', $proveedor], 200);
     }
@@ -88,14 +156,24 @@ class ProveedorController extends Controller
      */
     public function destroy(string $id)
     {
-        //Eliminar un proveedor en base a la id que se envia
         $proveedor = Proveedor::find($id);
+
+        // Verificar permisos de eliminación
+        if ($this->verificarRol('Empleado') || ($this->verificarRol('Owner') && $proveedor->created_by !== Auth::user()->id)) {
+            return response()->json(['error' => 'No tienes permiso para eliminar este proveedor'], 403);
+        }
+
         $proveedor->delete();
         return response()->json(['message' => 'Proveedor eliminado correctamente'], 200);
     }
 
+    /**
+     * Paginación de proveedores según el rol del usuario
+     */
     public function paginatedIndex(Request $request)
     {
+        $user = Auth::user();
+
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|string|max:255',
@@ -104,8 +182,8 @@ class ProveedorController extends Controller
             'telefono' => 'sometimes|string|max:255',
             'Cuidad' => 'sometimes|string|max:255',
             'Activo' => 'sometimes|boolean',
-            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
-            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+            'deleted_at' => 'sometimes|boolean',
+            'per_page' => 'sometimes|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -140,6 +218,16 @@ class ProveedorController extends Controller
 
         if (isset($validatedData['Activo'])) {
             $query->where('Activo', $validatedData['Activo']);
+        }
+
+        // Si el usuario es empleado, filtrar por sitio_id
+        if ($this->verificarRol('Empleado')) {
+            $query->where('sitio_id', $user->sitio_id);
+        }
+
+        // Si el usuario es owner, filtrar por created_by
+        if ($this->verificarRol('Owner')) {
+            $query->where('created_by', $user->id);
         }
 
         // Filtrar por deleted_at

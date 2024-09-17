@@ -18,27 +18,12 @@ class RolesAndPermissionsSeeder extends Seeder
             ['nombre' => 'Demo', 'descripcion' => 'Usuario de demostración con acceso limitado'],
         ];
 
+        // Lista de todos los permisos disponibles
         $permisos = [
             'Puede registrar usuarios',
             'Aprobar demo',
             'Negar demo',
-            'Puede actualizar usuarios',
             'Puede borrar usuarios',
-            'Puede crear sitios',
-            'Puede actualizar sitios',
-            'Puede borrar sitios',
-            'Puede crear productos',
-            'Puede actualizar productos',
-            'Puede borrar productos',
-            'Puede crear lotes',
-            'Puede actualizar lotes',
-            'Puede borrar lotes',
-            'Puede crear comprobantes',
-            'Puede descargar comprobantes',
-            'Puede crear etiquetas',
-            'Puede actualizar etiquetas',
-            'Puede borrar etiquetas',
-            'Puede asignar etiquetas',
             'Puede crear planes',
             'Puede actualizar planes',
             'Puede borrar planes',
@@ -50,15 +35,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'Puede borrar facturas',
             'Puede gestionar detalles de pago',
             'Puede gestionar detalles de factura',
-            'Puede crear proveedores',
-            'Puede actualizar proveedores',
-            'Puede borrar proveedores',
             'Puede gestionar roles y permisos',
             'Puede ver informacion de todos los usuarios',
             'Puede actualizar informacion de todos los usuarios',
             'Puede ver informacion usuarios de un solo sitio',
-            'Puede ver solo su informacion',
-            'Puede actualizar solo su informcion',
             'Puede actualizar empleados de sus sitios',
             'Puede eliminar empleados de sus sitios',
         ];
@@ -68,69 +48,58 @@ class RolesAndPermissionsSeeder extends Seeder
             Permiso::firstOrCreate(['nombre' => $permisoNombre]);
         }
 
+        // Permisos globales que se repiten entre roles
+        $permisosGlobales = [
+            'Puede crear productos',
+            'Puede actualizar productos',
+            'Puede borrar productos',
+            'Puede crear lotes',
+            'Puede actualizar lotes',
+            'Puede borrar lotes',
+            'Puede crear comprobantes',
+            'Puede descargar comprobantes',
+            'Puede ver etiquetas',
+            'Puede asignar etiquetas',
+            'Puede crear sitios',
+            'Puede actualizar sitios',
+            'Puede borrar sitios',
+            'Puede crear proveedores',
+            'Puede actualizar proveedores',
+            'Puede borrar proveedores',
+            'Puede ver solo su informacion',
+            'Puede actualizar solo su informcion',
+        ];
+
         // Crear los roles y asignar permisos
         foreach ($roles as $rolData) {
             $rol = Rol::firstOrCreate(['nombre' => $rolData['nombre']], ['descripcion' => $rolData['descripcion']]);
 
             switch ($rolData['nombre']) {
                 case 'Empleado':
-                    $rol->permisos()->sync(Permiso::whereIn('nombre', [
+                    $this->asignarPermisos($rol, array_merge($permisosGlobales, [
                         'Puede actualizar solo su informcion',
                         'Puede ver solo su informacion',
-                        'Puede crear productos',
-                        'Puede actualizar productos',
-                        'Puede borrar productos',
-                        'Puede crear lotes',
-                        'Puede actualizar lotes',
-                        'Puede borrar lotes',
-                        'Puede crear comprobantes',
-                        'Puede descargar comprobantes',
-                    ])->pluck('id'));
+                        'Puede crear etiquetas',
+                    ]));
                     break;
 
                 case 'Owner':
-                    $rol->permisos()->sync(Permiso::whereIn('nombre', [
-                        'Puede registrar usuarios (empleados)',
+                    $this->asignarPermisos($rol, array_merge($permisosGlobales, [
+                        'Puede registrar usuarios',
                         'Puede actualizar empleados de sus sitios',
                         'Puede eliminar empleados de sus sitios',
-                        'Puede crear sitios',
-                        'Puede actualizar sitios',
-                        'Puede borrar sitios',
-                        'Puede crear productos',
-                        'Puede actualizar productos',
-                        'Puede borrar productos',
-                        'Puede crear lotes',
-                        'Puede actualizar lotes',
-                        'Puede borrar lotes',
-                        'Puede crear comprobantes',
-                        'Puede descargar comprobantes',
-                        'Puede asignar etiquetas',
                         'Puede crear proveedores',
-                        'Puede actualizar proveedores',
-                        'Puede borrar proveedores',
-                    ])->pluck('id'));
+                    ]));
                     break;
 
                 case 'Admin':
-                    $rol->permisos()->sync(Permiso::whereIn('nombre', [
-                        'Puede registrar usuarios (empleados)',
+                    $this->asignarPermisos($rol, array_merge($permisosGlobales, [
+                        'Puede registrar usuarios',
                         'Puede actualizar empleados',
                         'Puede eliminar empleados',
-                        'Puede crear sitios',
-                        'Puede actualizar sitios',
-                        'Puede borrar sitios',
-                        'Puede crear productos',
-                        'Puede actualizar productos',
-                        'Puede borrar productos',
-                        'Puede crear lotes',
-                        'Puede actualizar lotes',
-                        'Puede borrar lotes',
-                        'Puede crear comprobantes',
-                        'Puede descargar comprobantes',
                         'Puede crear etiquetas',
                         'Puede actualizar etiquetas',
                         'Puede borrar etiquetas',
-                        'Puede asignar etiquetas',
                         'Puede crear planes',
                         'Puede actualizar planes',
                         'Puede borrar planes',
@@ -142,28 +111,30 @@ class RolesAndPermissionsSeeder extends Seeder
                         'Puede borrar facturas',
                         'Puede gestionar detalles de pago',
                         'Puede gestionar detalles de factura',
-                        'Puede crear proveedores',
-                        'Puede actualizar proveedores',
-                        'Puede borrar proveedores',
                         'Puede gestionar roles y permisos',
                         'Aprobar demo',
                         'Negar demo',
-                    ])->pluck('id'));
+                    ]));
                     break;
 
                 case 'Demo':
-                    // Los roles Demo no tienen permisos completos.
-                    $rol->permisos()->sync(Permiso::whereIn('nombre', [
-                        'Puede crear productos',
-                        'Puede actualizar productos',
-                        'Puede descargar comprobantes',
+                    $this->asignarPermisos($rol, array_merge($permisosGlobales, [
                         'Puede crear Lotes',
-                        'Puede actualizar lotes',
-                        'Puede borrar lotes',
-                        'Puede crear comprobantes',
-                    ])->pluck('id'));
+                    ]));
                     break;
             }
         }
+    }
+
+    /**
+     * Asignar permisos a un rol específico.
+     *
+     * @param Rol $rol
+     * @param array $permisos
+     */
+    private function asignarPermisos(Rol $rol, array $permisos)
+    {
+        $permisoIds = Permiso::whereIn('nombre', $permisos)->pluck('id');
+        $rol->permisos()->sync($permisoIds);
     }
 }

@@ -1,18 +1,24 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Etiqueta;
+use App\Models\Producto;
+use App\Models\Lote;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class EtiquetaController extends Controller
 {
-   
     /**
      * Obtener todas las etiquetas.
      */
-    public function index()
+    public function index(Request $request)
     {
+        if (!$this->verificarPermiso('Puede ver etiquetas')) {
+            return response()->json(['error' => 'No tienes permiso para ver etiquetas'], 403);
+        }
 
         $etiquetas = Etiqueta::all();
         return response()->json($etiquetas, 200);
@@ -23,8 +29,6 @@ class EtiquetaController extends Controller
      */
     public function store(Request $request)
     {
-       
-
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
             'color_hex' => 'required|string|max:7',  // Validar código HEX
@@ -48,8 +52,6 @@ class EtiquetaController extends Controller
      */
     public function update(Request $request, $id)
     {
-       
-
         $etiqueta = Etiqueta::findOrFail($id);
 
         $validatedData = $request->validate([
@@ -71,6 +73,10 @@ class EtiquetaController extends Controller
      */
     public function show($id)
     {
+        if (!$this->verificarPermiso('Puede ver etiquetas')) {
+            return response()->json(['error' => 'No tienes permiso para ver etiquetas'], 403);
+        }
+
         $etiqueta = Etiqueta::findOrFail($id);
         return response()->json($etiqueta, 200);
     }
@@ -80,7 +86,9 @@ class EtiquetaController extends Controller
      */
     public function destroy($id)
     {
-       
+        if (!$this->verificarPermiso('Puede borrar etiquetas')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar etiquetas'], 403);
+        }
 
         $etiqueta = Etiqueta::findOrFail($id);
         $etiqueta->delete();
@@ -88,8 +96,15 @@ class EtiquetaController extends Controller
         return response()->json(['message' => 'Etiqueta eliminada exitosamente'], 200);
     }
 
+    /**
+     * Obtener etiquetas con paginación.
+     */
     public function paginatedIndex(Request $request)
     {
+        if (!$this->verificarPermiso('Puede ver etiquetas')) {
+            return response()->json(['error' => 'No tienes permiso para ver etiquetas'], 403);
+        }
+
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|string|max:255',
@@ -147,5 +162,85 @@ class EtiquetaController extends Controller
         $etiquetas = $query->paginate($perPage);
 
         return response()->json($etiquetas);
+    }
+
+    /**
+     * Asignar una etiqueta a un producto.
+     */
+    public function asignarEtiquetaProducto(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'producto_id' => 'required|exists:producto,id_producto',
+            'etiqueta_id' => 'required|exists:etiqueta,id_etiqueta'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $producto = Producto::findOrFail($request->input('producto_id'));
+        $producto->etiquetas()->attach($request->input('etiqueta_id'));
+
+        return response()->json(['message' => 'Etiqueta asignada al producto exitosamente'], 200);
+    }
+
+    /**
+     * Asignar una etiqueta a un lote.
+     */
+    public function asignarEtiquetaLote(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'lote_id' => 'required|exists:lote,id_lote',
+            'etiqueta_id' => 'required|exists:etiqueta,id_etiqueta'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $lote = Lote::findOrFail($request->input('lote_id'));
+        $lote->etiquetas()->attach($request->input('etiqueta_id'));
+
+        return response()->json(['message' => 'Etiqueta asignada al lote exitosamente'], 200);
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un permiso específico.
+     *
+     * @param string $permisoNombre
+     * @return bool
+     */
+    private function verificarPermiso($permisoNombre)
+    {
+        $user = Auth::user();
+        $roles = $user->roles;
+
+        foreach ($roles as $rol) {
+            if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un rol específico.
+     *
+     * @param string $rolNombre
+     * @return bool
+     */
+    private function verificarRol($rolNombre)
+    {
+        $user = Auth::user();
+        $roles = $user->roles;
+
+        foreach ($roles as $rol) {
+            if ($rol->nombre === $rolNombre) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

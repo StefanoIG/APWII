@@ -5,10 +5,16 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Questions;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 class ChatBotController extends Controller
 {
-    // Método para normalizar texto
+    /**
+     * Normalizar texto.
+     *
+     * @param string $text
+     * @return string
+     */
     private function normalizeText($text)
     {
         // Convertir a minúsculas
@@ -23,9 +29,23 @@ class ChatBotController extends Controller
         return trim($text);
     }
 
-    // Método para almacenar nuevas preguntas y respuestas
+    /**
+     * Almacenar nuevas preguntas y respuestas.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function store(Request $request)
     {
+        if (!$this->verificarPermiso('Puede crear preguntas chatbot')) {
+            return response()->json(['error' => 'No tienes permiso para crear preguntas chatbot'], 403);
+        }
+
+        $request->validate([
+            'question' => 'required|string|max:255',
+            'response' => 'required|string|max:1000'
+        ]);
+
         // Normalizar la pregunta antes de almacenarla
         $normalizedQuestion = $this->normalizeText($request->input('question'));
 
@@ -38,9 +58,22 @@ class ChatBotController extends Controller
         return response()->json(['message' => 'Pregunta y respuesta guardadas con éxito']);
     }
 
-    // Método para el chat
+    /**
+     * Chat - Obtener respuesta para una pregunta.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function chat(Request $request)
     {
+        if (!$this->verificarPermiso('Puede crear preguntas chatbot')) {
+            return response()->json(['error' => 'No tienes permiso para consultar preguntas chatbot'], 403);
+        }
+
+        $request->validate([
+            'question' => 'required|string|max:255'
+        ]);
+
         // Normalizar la pregunta del usuario
         $normalizedQuestion = $this->normalizeText($request->input('question'));
 
@@ -53,13 +86,42 @@ class ChatBotController extends Controller
         return response()->json(['response' => $response]);
     }
 
-    // Método para obtener todas las preguntas y respuestas con paginación
+    /**
+     * Obtener todas las preguntas y respuestas con paginación.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function getAllQuestions(Request $request)
     {
+        if (!$this->verificarPermiso('Puede ver preguntas chatbot')) {
+            return response()->json(['error' => 'No tienes permiso para ver preguntas chatbot'], 403);
+        }
+
         // Obtener todas las preguntas y respuestas con paginación (10 por página)
         $questions = Questions::paginate(10);
 
         // Retornar la respuesta en formato JSON
         return response()->json($questions);
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un permiso específico.
+     *
+     * @param string $permisoNombre
+     * @return bool
+     */
+    private function verificarPermiso($permisoNombre)
+    {
+        $user = Auth::user();
+        $roles = $user->roles;
+
+        foreach ($roles as $rol) {
+            if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

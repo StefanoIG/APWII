@@ -14,7 +14,7 @@ class Proveedor extends Model
     
     protected $table = 'proveedor';
 
-    use HasFactory;
+    
 
     protected $fillable= [
         "nombre",
@@ -23,11 +23,16 @@ class Proveedor extends Model
         "telefono",
         "Cuidad",
         "Activo",
-        "isActive"
+        "isActive",
+        "sitio_id"
     ];
 
     protected $casts = [
         'isActive' => 'boolean',
     ];
-    
+    //relacion de 1 a n a sitios
+    public function sitio(){
+        return $this->belongsTo(Sitio::class, 'sitio_id');
+    }
+
 }
