@@ -22,6 +22,7 @@ use App\Mail\ConfirmacionPagoMail;
 use App\Mail\RechazoPagoMail;
 
 use App\Models\Demo;
+use App\Models\Rol;
 use App\Mail\DemoRejectedMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -33,6 +34,54 @@ use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPa
 
 class UsuarioController extends Controller
 {
+    /**
+     * Verifica si el usuario autenticado tiene un permiso específico.
+     *
+     * @param string $permisoNombre
+     * @return bool
+     */
+    private function verificarPermiso($permisoNombre)
+    {
+        $user = Auth::user();
+
+        // Obtener los roles asociados al usuario
+        $roles = $user->roles; // Asumiendo que el modelo Usuario tiene una relación con roles
+
+        // Iterar sobre cada rol del usuario
+        foreach ($roles as $rol) {
+            // Verificar si el rol tiene el permiso requerido
+            if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un rol específico.
+     *
+     * @param string $rolNombre
+     * @return bool
+     */
+    private function verificarRol($rolNombre)
+    {
+        $user = Auth::user();
+
+        // Obtener los roles asociados al usuario
+        $roles = $user->roles; // Asumiendo que el modelo Usuario tiene una relación con roles
+
+        // Verificar si alguno de los roles coincide con el nombre del rol requerido
+        foreach ($roles as $rol) {
+            if ($rol->nombre === $rolNombre) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
 
     /**
      * Mostrar la lista de usuarios.
@@ -41,7 +90,7 @@ class UsuarioController extends Controller
     {
         $user = Auth::user(); // Obtiene el usuario autenticado
 
-        if ($user->rol === 'admin') {
+        if ($this->verificarRol('admin')) {
             // Admin puede ver todos los usuarios
             $usuarios = Usuario::all();
         } else {
@@ -51,6 +100,7 @@ class UsuarioController extends Controller
 
         return response()->json($usuarios);
     }
+
 
 
     /**
@@ -67,10 +117,10 @@ class UsuarioController extends Controller
             'cedula' => 'required|string|max:10|unique:usuarios,cedula',
             'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
             'password' => 'required|string|min:6',
-            'rol' => 'required|in:empleado,admin,demo,owner',
-            'sitio_id' => 'required_if:rol,empleado|exists:sitio,id_sitio',
-            'id_plan' => 'required_if:rol,owner|exists:planes,id_plan',
-            'metodo_pago' => 'required_if:rol,owner|in:1,2', // Añadir validación para el método de pago
+            'rol_id' => 'required|exists:roles,id', // Validación para el campo rol_id
+            'sitio_id' => 'required_if:rol_id,' . $this->getRoleIdByName('Empleado') . '|exists:sitio,id_sitio', // Rol empleado
+            'id_plan' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|exists:planes,id_plan', // Rol owner
+            'metodo_pago' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|in:1,2', // Validación para el método de pago para owner
         ]);
 
         if ($validator->fails()) {
@@ -79,7 +129,10 @@ class UsuarioController extends Controller
 
         DB::beginTransaction();
         try {
-            // Crear el usuario temporalmente
+            // Buscar el rol por ID
+            $rol = Rol::find($request->rol_id);
+
+            // Crear el usuario
             $usuario = Usuario::create([
                 'nombre' => $request->nombre,
                 'apellido' => $request->apellido,
@@ -87,13 +140,13 @@ class UsuarioController extends Controller
                 'cedula' => $request->cedula,
                 'correo_electronico' => $request->correo_electronico,
                 'password' => $request->password,
-                'rol' => $request->rol,
+                'rol_id' => $request->rol_id,  // Relación con la tabla de roles
                 'id_plan' => $request->id_plan ?? null,
-                'suscripcion' => 'pendiente', // Estado pendiente hasta confirmar el pago
+                'suscripcion' => 'pendiente',  // Estado pendiente hasta confirmar el pago
             ]);
 
-            if ($usuario->rol === 'owner') {
-                if ($request->metodo_pago == 2) {
+            if ($rol->nombre === 'Owner') {
+                if ($request->metodo_pago == 1) {
                     // Opción 1: PayPal
                     $paymentResult = $this->processPayment($request->id_plan, $usuario);
 
@@ -104,7 +157,7 @@ class UsuarioController extends Controller
 
                     DB::commit();
                     return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
-                } elseif ($request->metodo_pago == 1) {
+                } elseif ($request->metodo_pago == 2) {
                     // Opción 2: Transferencia Bancaria
 
                     // Crear la factura antes de notificar a los administradores
@@ -121,14 +174,17 @@ class UsuarioController extends Controller
 
                     DetalleFactura::create([
                         'factura_id' => $factura->id,
-                        'descripcion' => "Pago suscripcion",
+                        'descripcion' => "Pago suscripción",
                         'cantidad' => 1,
                         'precio_unitario' => $setupFee,
                         'subtotal' => $setupFee,
                     ]);
 
                     // Notificar a los administradores
-                    $admins = Usuario::where('rol', 'admin')->get();
+                    $admins = Usuario::whereHas('rol', function ($query) {
+                        $query->where('nombre', 'Admin');
+                    })->get();
+
                     foreach ($admins as $admin) {
                         Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
                     }
@@ -141,6 +197,10 @@ class UsuarioController extends Controller
                 }
             } else {
                 DB::commit();
+                //funcion que asigna el rol automaticamente
+                $usuario->roles()->attach($rol);
+                // Enviar correo de bienvenida
+                Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
                 return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
             }
         } catch (\Exception $e) {
@@ -149,6 +209,16 @@ class UsuarioController extends Controller
             return response()->json(['errors' => 'Error al crear usuario'], 500);
         }
     }
+
+    /**
+     * Obtener el ID del rol por nombre.
+     */
+    private function getRoleIdByName($rolNombre)
+    {
+        $rol = Rol::where('nombre', $rolNombre)->first();
+        return $rol ? $rol->id : null;
+    }
+
 
 
 
@@ -277,8 +347,6 @@ class UsuarioController extends Controller
 
 
 
-
-
     //funcion si el pago fue exitoso
     public function paymentSuccess(Request $request)
     {
@@ -339,8 +407,8 @@ class UsuarioController extends Controller
         $user = Auth::user(); // Obtiene el usuario autenticado
         $usuario = Usuario::findOrFail($id);
 
-        // Verificar permisos
-        if (($user->rol === 'empleado' || $user->rol === 'demo') && $user->id !== $usuario->id) {
+        // Verificar si el usuario tiene el permiso para actualizar otros usuarios
+        if (!$this->verificarPermiso('Puede actualizar usuarios') && $user->id !== $usuario->id) {
             return response()->json(['error' => 'No tienes permisos para actualizar esta información'], 403);
         }
 
@@ -352,7 +420,7 @@ class UsuarioController extends Controller
             'cedula' => 'sometimes|required|string|max:10|unique:usuarios,cedula,' . $usuario->id,
             'correo_electronico' => 'sometimes|required|email|unique:usuarios,correo_electronico,' . $usuario->id,
             'contrasena' => 'sometimes|required|string|min:6',
-            'rol' => 'sometimes|in:empleado,admin,demo,owner',
+            'rol_id' => 'sometimes|exists:roles,id', // Ahora se usa rol_id
         ]);
 
         if ($validator->fails()) {
@@ -360,23 +428,24 @@ class UsuarioController extends Controller
         }
 
         // Actualización del usuario
-        if ($user->rol === 'empleado') {
+        if ($this->verificarPermiso('Puede actualizar empleados')) {
             // Solo permitir actualización de ciertos campos para empleados
             $requestData = $request->only(['nombre', 'apellido', 'telefono', 'cedula', 'correo_electronico']);
             if ($request->has('contrasena')) {
-                $requestData['contrasena'] = bcrypt($request->contrasena);
+                $requestData['contrasena'] = ($request->contrasena);
             }
             $usuario->update($requestData);
         } else {
             // Admin puede actualizar todos los campos
             if ($request->has('contrasena')) {
-                $request->merge(['contrasena' => bcrypt($request->contrasena)]);
+                $request->merge(['contrasena' => $request->password]);
             }
             $usuario->update($request->all());
         }
 
         return response()->json(['message' => 'Usuario actualizado exitosamente', 'usuario' => $usuario], 200);
     }
+
 
 
     // recuperar contraseña
@@ -510,6 +579,11 @@ class UsuarioController extends Controller
     // Aprobación de demo
     public function approveDemo(Request $request)
     {
+        // Verificar si el usuario tiene el permiso para aprobar demos
+        if (!$this->verificarPermiso('Aprobar demo')) {
+            return response()->json(['error' => 'No tienes permiso para aprobar demos'], 403);
+        }
+
         // Validar el ID de la demo a aprobar
         $validator = Validator::make($request->all(), [
             'id' => 'required|integer|exists:demo,id',
@@ -580,9 +654,15 @@ class UsuarioController extends Controller
 
 
 
+
     //Negar demo
     public function rejectDemo(Request $request)
     {
+        // Verificar si el usuario tiene el permiso para negar demos
+        if (!$this->verificarPermiso('Negar demo')) {
+            return response()->json(['error' => 'No tienes permiso para rechazar demos'], 403);
+        }
+
         // Validar el ID de la demo a rechazar
         $validator = Validator::make($request->all(), [
             'id' => 'required|integer|exists:demo,id',
@@ -613,18 +693,24 @@ class UsuarioController extends Controller
     //Eliminar usuario
     public function destroy($id)
     {
-        // Find the user by ID
+        // Verificar si el usuario tiene el permiso para borrar usuarios
+        if (!$this->verificarPermiso('Puede borrar usuarios')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar usuarios'], 403);
+        }
+
+        // Buscar el usuario por ID
         $usuario = Usuario::find($id);
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
-        // Soft delete the user
+        // Borrado lógico del usuario (soft delete)
         $usuario->delete();
 
         return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
     }
+
 
 
     public function paginatedIndex(Request $request)
@@ -635,6 +721,11 @@ class UsuarioController extends Controller
             return response()->json(['errors' => 'No estás autenticado.'], 401);
         }
 
+        // Verificar si el usuario tiene el rol de empleado y denegar acceso
+        if ($this->verificarRol('Empleado')) {
+            return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
+        }
+
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|string|max:255',
@@ -642,8 +733,8 @@ class UsuarioController extends Controller
             'telefono' => 'sometimes|string|max:255',
             'cedula' => 'sometimes|string|max:10',
             'correo_electronico' => 'sometimes|string|max:255',
-            'rol' => 'sometimes|in:empleado,admin,demo,owner',
-            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
+            'rol' => 'sometimes|in:Empleado,Admin,Demo,Owner',
+            'deleted_at' => 'sometimes|boolean', // Usar booleano para filtrar activos/inactivos
             'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
         ]);
 
@@ -691,9 +782,7 @@ class UsuarioController extends Controller
         }
 
         // Limitar la información basada en el rol del usuario autenticado
-        if ($authUser->rol === 'empleado') {
-            return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
-        } elseif ($authUser->rol === 'owner') {
+        if ($this->verificarRol('owner')) {
             $query->whereHas('owners', function ($q) use ($authUser) {
                 $q->where('owner_id', $authUser->id);
             });

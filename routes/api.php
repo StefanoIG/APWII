@@ -15,7 +15,38 @@ use App\Http\Controllers\FacturaController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\PromocionController;
 use App\Http\Controllers\MetodoPagoController;
+use App\Http\Controllers\RolController;
+use App\Http\Controllers\PermisoController;
+use App\Http\Controllers\UsuarioRolController;
+use App\Http\Controllers\RolPermisoController;
 
+Route::prefix('roles')->group(function() {
+    Route::get('/', [RolController::class, 'index']);  // Obtener todos los roles
+    Route::post('/', [RolController::class, 'store']); // Crear un rol
+    Route::get('{id}', [RolController::class, 'show']); // Mostrar un rol específico
+    Route::put('{id}', [RolController::class, 'update']); // Actualizar un rol
+    Route::delete('{id}', [RolController::class, 'destroy']); // Eliminar un rol
+});
+
+Route::prefix('permisos')->group(function() {
+    Route::get('/', [PermisoController::class, 'index']);  // Obtener todos los permisos
+    Route::post('/', [PermisoController::class, 'store']); // Crear un permiso
+    Route::get('{id}', [PermisoController::class, 'show']); // Mostrar un permiso específico
+    Route::put('{id}', [PermisoController::class, 'update']); // Actualizar un permiso
+    Route::delete('{id}', [PermisoController::class, 'destroy']); // Eliminar un permiso
+});
+
+Route::prefix('usuario_rol')->group(function() {
+    Route::post('/', [UsuarioRolController::class, 'store']);  // Asignar un rol a un usuario
+    Route::delete('/', [UsuarioRolController::class, 'destroy']); // Remover un rol de un usuario
+    Route::get('{usuario_id}', [UsuarioRolController::class, 'show']); // Obtener roles de un usuario
+});
+
+Route::prefix('rol_permiso')->group(function() {
+    Route::post('/', [RolPermisoController::class, 'store']);  // Asignar un permiso a un rol
+    Route::delete('/', [RolPermisoController::class, 'destroy']); // Remover un permiso de un rol
+    Route::get('{rol_id}', [RolPermisoController::class, 'show']); // Obtener permisos de un rol
+});
 
 
 //rutas de paypal publicas
