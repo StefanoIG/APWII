@@ -539,41 +539,53 @@ class UsuarioController extends Controller
 
 
     public function requestDemo(Request $request)
-    {
-        // Validar que el email fue enviado en la solicitud
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email|unique:demo,email|unique:usuarios,correo_electronico',
+{
+    // Validar que el email fue enviado en la solicitud
+    $validator = Validator::make($request->all(), [
+        'email' => 'required|email|unique:demo,email|unique:usuarios,correo_electronico',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    DB::beginTransaction();
+
+    try {
+        // Registrar el correo en la tabla demo
+        $demoRequest = Demo::create([
+            'email' => $request->email,
+            // El usuario_id y isActive se manejarán al aprobar
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        // Obtener los correos de los administradores directamente desde la tabla usuario_rol
+        $adminEmail = Usuario::whereHas('roles', function ($query) {
+            $query->where('nombre', 'Admin');
+        })->pluck('correo_electronico')->toArray();
+        
+        //imrimir el $adminEmail
+        // dd($adminEmail);
+
+        // Verificar que haya correos de administradores
+        if (empty($adminEmail)) {
+            throw new \Exception("No hay administradores disponibles para enviar la solicitud de demo.");
         }
 
-        DB::beginTransaction();
+        // Enviar un correo a los administradores notificando la nueva solicitud de demo
+        Mail::to($adminEmail)->send(new RequestDemoMail($demoRequest));
 
-        try {
-            // Registrar el correo en la tabla demo
-            $demoRequest = Demo::create([
-                'email' => $request->email,
-                // El usuario_id y isActive se manejarán al aprobar
-            ]);
+        DB::commit();
 
-            // Obtener los correos de los administradores
-            $adminEmail = Usuario::where('rol', 'admin')->pluck('correo_electronico')->toArray();
-
-            // Enviar un correo a los administradores notificando la nueva solicitud de demo
-            Mail::to($adminEmail)->send(new RequestDemoMail($demoRequest));
-
-            DB::commit();
-
-            return response()->json(['message' => 'Solicitud de demo enviada correctamente.'], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
-            //log con los errores
-
-        }
+        return response()->json(['message' => 'Solicitud de demo enviada correctamente.'], 201);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        //log de errores
+        Log::error('Error al enviar la solicitud de demo: ' . $e->getMessage());
+        return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
     }
+}
+
+
 
 
     // Aprobación de demo

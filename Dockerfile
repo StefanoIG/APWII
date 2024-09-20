@@ -1,21 +1,21 @@
-# Usa una imagen base con PHP 8 y Nginx
+# Use a base image with PHP 8 and Nginx
 FROM richarvey/nginx-php-fpm:latest
 
-# Copia los archivos de tu aplicación al contenedor
+# Copy your application's files to the container
 COPY . /var/www/html
 
-# Establece los permisos correctos para los archivos
+# Set the correct permissions for the files
 RUN chown -R www-data:www-data /var/www/html
 
-# Instala las dependencias con Composer
+# Install dependencies with Composer
 RUN composer install --no-dev --optimize-autoloader
 
-# Corre comandos de cache en producción
+# Run cache commands in production
 RUN php artisan config:cache
 RUN php artisan route:cache
 
-# Expone el puerto 80
+# Expose port 80
 EXPOSE 80
 
-# Comando por defecto al iniciar el contenedor
+# Default command to run when the container starts
 CMD ["/start.sh"]
