@@ -20,7 +20,7 @@ use App\Mail\ConfirmarPagoTransferencia;
 use App\Mail\PagoPendienteTransferencia;
 use App\Mail\ConfirmacionPagoMail;
 use App\Mail\RechazoPagoMail;
-
+//Modelos
 use App\Models\Demo;
 use App\Models\Rol;
 use App\Mail\DemoRejectedMail;
@@ -29,10 +29,17 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Planes;
 use App\Models\Factura;
 use App\Models\DetalleFactura;
+use App\Models\Tenant;
+
+use App\Jobs\CreateDatabase;
+use App\Jobs\MigrateDatabase;
+
 
 use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
 
 class UsuarioController extends Controller
+
+
 {
     /**
      * Verifica si el usuario autenticado tiene un permiso específico.
@@ -145,6 +152,12 @@ class UsuarioController extends Controller
                 'suscripcion' => 'pendiente',  // Estado pendiente hasta confirmar el pago
             ]);
 
+
+            if ($rol->nombre === 'Owner') {
+                // Llamamos a la función para crear el tenant
+                $this->createTenantForOwner($usuario);
+            }
+
             if ($rol->nombre === 'Owner') {
                 if ($request->metodo_pago == 1) {
                     // Opción 1: PayPal
@@ -209,6 +222,34 @@ class UsuarioController extends Controller
             return response()->json(['errors' => 'Error al crear usuario'], 500);
         }
     }
+
+
+    //funcion para crear el tenant y definir la bd
+    protected function createTenantForOwner(Usuario $user)
+    {
+        // Creamos un Tenant y especificamos el nombre de la base de datos
+        $tenant = Tenant::create([
+            'tenancy_db_name' => 'empresa_bd_' . Str::slug($user->name), // Se usa el nombre del usuario o empresa
+            'tenancy_db_username' => 'usuario_bd_' . Str::slug($user->name),
+            'tenancy_db_password' => 'password_segura', // Puedes generar una contraseña segura
+        ]);
+
+        // Si tienes multi-dominios, puedes asociar un dominio al tenant
+        $tenant->domains()->create([
+            'domain' => Str::slug($user->name) . '.miapp.com',
+        ]);
+
+        // Crear y migrar la base de datos del tenant
+        $tenant->run(function ($tenant) {
+            dispatch_sync(new CreateDatabase($tenant)); // Crea la nueva base de datos
+            dispatch_sync(new MigrateDatabase($tenant)); // Ejecuta las migraciones
+        });
+
+        // Aquí puedes realizar cualquier otra configuración para el tenant
+
+        return $tenant;
+    }
+
 
     /**
      * Obtener el ID del rol por nombre.
@@ -539,51 +580,51 @@ class UsuarioController extends Controller
 
 
     public function requestDemo(Request $request)
-{
-    // Validar que el email fue enviado en la solicitud
-    $validator = Validator::make($request->all(), [
-        'email' => 'required|email|unique:demo,email|unique:usuarios,correo_electronico',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
-
-    DB::beginTransaction();
-
-    try {
-        // Registrar el correo en la tabla demo
-        $demoRequest = Demo::create([
-            'email' => $request->email,
-            // El usuario_id y isActive se manejarán al aprobar
+    {
+        // Validar que el email fue enviado en la solicitud
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|unique:demo,email|unique:usuarios,correo_electronico',
         ]);
 
-        // Obtener los correos de los administradores directamente desde la tabla usuario_rol
-        $adminEmail = Usuario::whereHas('roles', function ($query) {
-            $query->where('nombre', 'Admin');
-        })->pluck('correo_electronico')->toArray();
-        
-        //imrimir el $adminEmail
-        // dd($adminEmail);
-
-        // Verificar que haya correos de administradores
-        if (empty($adminEmail)) {
-            throw new \Exception("No hay administradores disponibles para enviar la solicitud de demo.");
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Enviar un correo a los administradores notificando la nueva solicitud de demo
-        Mail::to($adminEmail)->send(new RequestDemoMail($demoRequest));
+        DB::beginTransaction();
 
-        DB::commit();
+        try {
+            // Registrar el correo en la tabla demo
+            $demoRequest = Demo::create([
+                'email' => $request->email,
+                // El usuario_id y isActive se manejarán al aprobar
+            ]);
 
-        return response()->json(['message' => 'Solicitud de demo enviada correctamente.'], 201);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        //log de errores
-        Log::error('Error al enviar la solicitud de demo: ' . $e->getMessage());
-        return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
+            // Obtener los correos de los administradores directamente desde la tabla usuario_rol
+            $adminEmail = Usuario::whereHas('roles', function ($query) {
+                $query->where('nombre', 'Admin');
+            })->pluck('correo_electronico')->toArray();
+
+            //imrimir el $adminEmail
+            // dd($adminEmail);
+
+            // Verificar que haya correos de administradores
+            if (empty($adminEmail)) {
+                throw new \Exception("No hay administradores disponibles para enviar la solicitud de demo.");
+            }
+
+            // Enviar un correo a los administradores notificando la nueva solicitud de demo
+            Mail::to($adminEmail)->send(new RequestDemoMail($demoRequest));
+
+            DB::commit();
+
+            return response()->json(['message' => 'Solicitud de demo enviada correctamente.'], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            //log de errores
+            Log::error('Error al enviar la solicitud de demo: ' . $e->getMessage());
+            return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
+        }
     }
-}
 
 
 
