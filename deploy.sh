@@ -11,3 +11,6 @@ php artisan config:cache
 
 echo "Cacheando rutas..."
 php artisan route:cache
+
+echo "cacheando endpoints..."
+php artisan route:list
