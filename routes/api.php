@@ -74,6 +74,11 @@ Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
 Route::post('/demo', [UsuarioController::class, 'requestDemo']);
 
 
+//rutas de proveedores
+Route::get('/proveedores', [ProveedorController::class, 'index']);
+Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
+Route::put('/proveedores/{id}', [ProveedorController::class, 'update']);
+Route::delete('/proveedores/{id}', [ProveedorController::class, 'destroy']);   
 Route::get('/proveedores-pagination', [ProveedorController::class, 'paginatedIndex']);
 Route::post('/proveedor', [ProveedorController::class, 'store']);
 
@@ -98,23 +103,8 @@ Route::middleware('auth:api')->group(function () {
 
 
     //rutas de etiquetas
-    Route::get('/etiquetas', [EtiquetaController::class, 'index']);
-    Route::get('/etiquetas/{id}', [EtiquetaController::class, 'show']);
-    Route::post('/etiquetas', [EtiquetaController::class, 'store']);
-    Route::put('/etiquetas/{id}', [EtiquetaController::class, 'update']);
-
-    //rutas de proveedores
-    Route::get('/proveedores', [ProveedorController::class, 'index']);
-    Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
-    Route::put('/proveedores/{id}', [ProveedorController::class, 'update']);
-    Route::delete('/proveedores/{id}', [ProveedorController::class, 'destroy']);
 
 
-    //rutas de lotes
-    Route::get('/lotes', [LoteController::class, 'index']);
-    Route::get('/lotes/{id}', [LoteController::class, 'show']);
-    Route::post('/lotes', [LoteController::class, 'store']);
-    Route::delete('/lotes/{id}', [LoteController::class, 'destroy']);
 
 
     //rutas de comprobantes
@@ -126,15 +116,12 @@ Route::middleware('auth:api')->group(function () {
 
 
     //rutas de productos
-    Route::get('/productos/{id}', [ProductoController::class, 'show']);
-    Route::get('/productos', [ProductoController::class, 'index']);
-    Route::post('/productos', [ProductoController::class, 'store']);
 
     //rutas de retorno
     Route::get('/retornos', [RetornoController::class, 'index']);
     Route::get('/retornos/{id}', [RetornoController::class, 'show']);
     Route::post('/retornos', [RetornoController::class, 'store']);;
-
+    
 
     //rutas de sitios
     Route::get('/sitios', [SitioController::class, 'index']);
@@ -185,3 +172,22 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/metodos-pago/{id}', [MetodoPagoController::class, 'update']);
     Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
 });
+
+    Route::put('/usuarios/habilitar/{id}', [UsuarioController::class, 'habilitarUsuario'])->name('api.usuarios.habilitar');
+    //rutas de lotes
+    Route::get('/lotes', [LoteController::class, 'index']);
+    Route::get('/lotes/{id}', [LoteController::class, 'show']);
+    Route::post('/lotes', [LoteController::class, 'store']);
+    Route::put('/lotes/{id}', [LoteController::class, 'update']);
+    Route::delete('/lotes/{id}', [LoteController::class, 'destroy']);
+    Route::get('/productos/{id}', [ProductoController::class, 'show']);
+    Route::get('/productos', [ProductoController::class, 'index']);
+    Route::post('/productos', [ProductoController::class, 'store']);
+    Route::delete('/productos/{id}', [ProductoController::class, 'destroy']);
+    Route::put('/productos/{id}', [ProductoController::class, 'update']);
+
+    Route::get('/etiquetas', [EtiquetaController::class, 'index']);
+    Route::get('/etiquetas/{id}', [EtiquetaController::class, 'show']);
+    Route::post('/etiquetas', [EtiquetaController::class, 'store']);
+    Route::put('/etiquetas/{id}', [EtiquetaController::class, 'update']);
+    Route::delete('/etiquetas/{id}', [EtiquetaController::class, 'destroy']);

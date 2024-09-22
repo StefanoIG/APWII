@@ -6,12 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\Retorno;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class RetornoController extends Controller
 {
     // Obtener todos los retornos
     public function index()
     {
+        if (!$this->verificarPermiso('Puede ver retornos')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar sitios'], 403);
+        }
+
         try {
             $retornos = Retorno::all();
             return response()->json($retornos);
@@ -26,8 +31,8 @@ class RetornoController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'id_comprobante' => 'required|exists:comprobante,id_comprobante', // Cambiado a 'comprobante'
-                'id_producto' => 'required|exists:producto,id_producto', // Cambiado a 'producto'
+                'id_comprobante' => 'required|exists:comprobante,id_comprobante',
+                'id_producto' => 'required|exists:producto,id_producto',
                 'fecha_retorno' => 'required|date',
                 'cantidad' => 'required|integer',
                 'motivo_retorno' => 'required|string|max:255',
@@ -38,6 +43,8 @@ class RetornoController extends Controller
             $retorno = Retorno::create($validatedData);
 
             return response()->json($retorno, 201);
+        } catch (ValidationException $e) {
+            return response()->json(['errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             Log::error('Error al crear retorno: ' . $e->getMessage());
             return response()->json(['error' => 'Error en el servidor', 'details' => $e->getMessage()], 500);

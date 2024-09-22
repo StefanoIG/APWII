@@ -52,6 +52,11 @@ class EtiquetaController extends Controller
      */
     public function update(Request $request, $id)
     {
+
+        if (!$this->verificarPermiso('Puede actualizar etiquetas')) {
+            return response()->json(['error' => 'No tienes permiso para actualizar etiquetas'], 403);
+        }
+
         $etiqueta = Etiqueta::findOrFail($id);
 
         $validatedData = $request->validate([
@@ -73,9 +78,7 @@ class EtiquetaController extends Controller
      */
     public function show($id)
     {
-        if (!$this->verificarPermiso('Puede ver etiquetas')) {
-            return response()->json(['error' => 'No tienes permiso para ver etiquetas'], 403);
-        }
+
 
         $etiqueta = Etiqueta::findOrFail($id);
         return response()->json($etiqueta, 200);
@@ -214,13 +217,15 @@ class EtiquetaController extends Controller
     {
         $user = Auth::user();
         $roles = $user->roles;
-
+    
         foreach ($roles as $rol) {
             if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                \Log::info("Usuario {$user->id} tiene el permiso {$permisoNombre}");
                 return true;
             }
         }
-
+    
+        \Log::warning("Usuario {$user->id} no tiene el permiso {$permisoNombre}");
         return false;
     }
 
