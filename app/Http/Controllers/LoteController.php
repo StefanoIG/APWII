@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Etiqueta;
+use App\Models\Login;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Producto;
 
 class LoteController extends Controller
@@ -16,26 +18,47 @@ class LoteController extends Controller
     // Obtener todos los lotes
     public function index()
     {
-        $lotes = Lote::all();
-        return response()->json($lotes);
+        try {
+            // Verificar permiso
+            if (!$this->verificarPermiso('Puede ver lotes')) {
+                return response()->json(['error' => 'No tienes permiso para ver lotes'], 403);
+            }
+
+            // Obtener todos los lotes
+            $lotes = Lote::all();
+            return response()->json($lotes);
+        } catch (\Exception $e) {
+            Log::error('Error en index: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al obtener los lotes'], 500);
+        }
     }
 
     // Obtener un lote específico por ID
     public function show($id)
     {
-        $lote = Lote::find($id);
+        try {
+            $lote = Lote::find($id);
 
-        if (!$lote) {
-            return response()->json(['message' => 'Lote no encontrado'], 404);
+            if (!$lote) {
+                return response()->json(['message' => 'Lote no encontrado'], 404);
+            }
+
+            return response()->json($lote);
+        } catch (\Exception $e) {
+            Log::error('Error en show: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al obtener el lote'], 500);
         }
-
-        return response()->json($lote);
     }
 
-
     // Crear un nuevo lote
-    public function store(Request $request)
-    {
+public function store(Request $request)
+{
+    try {
+        // Verificar permiso
+        if (!$this->verificarPermiso('Puede crear lotes')) {
+            return response()->json(['error' => 'No tienes permiso para crear lotes'], 403);
+        }
+
         // Validar la solicitud con una regla personalizada
         $validator = Validator::make($request->all(), [
             'id_producto' => 'required|exists:producto,id_producto',
@@ -52,7 +75,8 @@ class LoteController extends Controller
         $validator->sometimes('fecha_caducidad', 'required|date', function ($input) {
             return $input->expirable == true;
         });
-
+        
+        // Verificar si la validación falla
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
@@ -65,7 +89,7 @@ class LoteController extends Controller
             $lote = new Lote();
             $lote->id_producto = $validatedData['id_producto'];
             $lote->id_proveedor = $validatedData['id_proveedor'];
-            $lote->fecha_fabricacion = $validatedData['fecha_fabricacion'];
+            $lote->fecha_fabricacion = $validatedData['fecha_fabricacion'] ?? null;
             $lote->cantidad = $validatedData['cantidad'];
             $lote->expirable = $validatedData['expirable'];
             $lote->isActive = $validatedData['isActive'];
@@ -114,7 +138,6 @@ class LoteController extends Controller
                 }
             }
 
-
             DB::commit();
             return response()->json($lote, 201);
         } catch (\Exception $e) {
@@ -122,7 +145,11 @@ class LoteController extends Controller
             Log::error('Error al crear lote: ' . $e->getMessage());
             return response()->json(['error' => 'Error al crear el lote'], 500);
         }
+    } catch (\Exception $e) {
+        Log::error('Error en store: ' . $e->getMessage());
+        return response()->json(['error' => 'Error al procesar la solicitud'], 500);
     }
+}
 
     // Generar un código de barras de longitud fija
     private function generarCodigoDeBarras()
@@ -134,205 +161,283 @@ class LoteController extends Controller
     // Generar y mostrar la imagen del código de barras
     public function verCodigoDeBarras($id_lote)
     {
+        try {
+            // Buscar el lote por id_lote
+            $lote = Lote::findOrFail($id_lote);
 
-        // Buscar el lote por id_lote
-        $lote = Lote::findOrFail($id_lote);
+            // Verificar si el lote tiene un código de barras
+            if (!$lote->codigo_lote) {
+                return response()->json(['error' => 'El lote no tiene un código de barras asignado.'], 404);
+            }
 
-        // Verificar si el lote tiene un código de barras
-        if (!$lote->codigo_lote) {
-            return response()->json(['error' => 'El lote no tiene un código de barras asignado.'], 404);
+            // Generar la imagen del código de barras a partir del código de la base de datos
+            $generatorPNG = new BarcodeGeneratorPNG();
+            $image = $generatorPNG->getBarcode($lote->codigo_lote, $generatorPNG::TYPE_CODE_128);
+
+            // Devolver la imagen como respuesta
+            return response($image)->header('Content-type', 'image/png');
+        } catch (\Exception $e) {
+            Log::error('Error en verCodigoDeBarras: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al generar el código de barras'], 500);
         }
-
-        // Generar la imagen del código de barras a partir del código de la base de datos
-        $generatorPNG = new BarcodeGeneratorPNG();
-        $image = $generatorPNG->getBarcode($lote->codigo_lote, $generatorPNG::TYPE_CODE_128);
-
-        // Devolver la imagen como respuesta
-        return response($image)->header('Content-type', 'image/png');
     }
 
     public function showByCodigoLote(Request $request)
     {
-        // Validar que el código de lote fue enviado en la solicitud
-        $validator = Validator::make($request->all(), [
-            'codigo_lote' => 'required|string|exists:lote,codigo_lote',
-        ]);
+        try {
+            // Validar que el código de lote fue enviado en la solicitud
+            $validator = Validator::make($request->all(), [
+                'codigo_lote' => 'required|string|exists:lote,codigo_lote',
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Buscar el lote por código de lote con la información del producto asociado
+            $lote = Lote::with('producto')->where('codigo_lote', $request->codigo_lote)->first();
+
+            if (!$lote) {
+                return response()->json(['message' => 'Lote no encontrado'], 404);
+            }
+
+            return response()->json([
+                'lote' => $lote,
+                'producto' => $lote->producto
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error en showByCodigoLote: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al obtener el lote por código'], 500);
         }
-
-        // Buscar el lote por código de lote con la información del producto asociado
-        $lote = Lote::with('producto')->where('codigo_lote', $request->codigo_lote)->first();
-
-        if (!$lote) {
-            return response()->json(['message' => 'Lote no encontrado'], 404);
-        }
-
-        return response()->json([
-            'lote' => $lote,
-            'producto' => $lote->producto
-        ]);
     }
 
     // Actualizar un lote existente
     public function update(Request $request, $id)
     {
-        // Validar la solicitud con una regla personalizada
-        $validator = Validator::make($request->all(), [
-            'id_producto' => 'sometimes|exists:producto,id_producto',
-            'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
-            'fecha_fabricacion' => 'sometimes|date',
-            'fecha_caducidad' => 'sometimes|date',
-            'cantidad' => 'sometimes|integer',
-            'expirable' => 'sometimes|boolean',
-            'isActive' => 'sometimes|boolean',
-            'id_sitio' => 'sometimes|exists:sitio,id_sitio'
-        ]);
-
-        // Agregar una regla personalizada para validar fecha_caducidad
-        $validator->sometimes('fecha_caducidad', 'required|date', function ($input) {
-            return $input->expirable == true;
-        });
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Uso de transacciones para asegurar consistencia
-        DB::beginTransaction();
         try {
-            // Buscar el lote por ID
-            $lote = Lote::findOrFail($id);
-
-            // Actualizar el lote con los datos validados
-            $validatedData = $validator->validated();
-            $lote->fill($validatedData);
-
-            // Asignar fecha_caducidad solo si expirable es true
-            if ($lote->expirable) {
-                $lote->fecha_caducidad = $validatedData['fecha_caducidad'];
+            // Verificar permiso
+            if (!$this->verificarPermiso('Puede actualizar lotes')) {
+                return response()->json(['error' => 'No tienes permiso para actualizar lotes'], 403);
             }
 
-            // Guardar el lote
-            $lote->save();
+            // Validar la solicitud con una regla personalizada
+            $validator = Validator::make($request->all(), [
+                'id_producto' => 'sometimes|exists:producto,id_producto',
+                'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
+                'fecha_fabricacion' => 'sometimes|date',
+                'fecha_caducidad' => 'sometimes|date',
+                'cantidad' => 'sometimes|integer',
+                'expirable' => 'sometimes|boolean',
+                'isActive' => 'sometimes|boolean',
+                'id_sitio' => 'sometimes|exists:sitio,id_sitio'
+            ]);
 
-            DB::commit();
-            return response()->json($lote, 200);
+            // Agregar una regla personalizada para validar fecha_caducidad
+            $validator->sometimes('fecha_caducidad', 'required|date', function ($input) {
+                return $input->expirable == true;
+            });
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Uso de transacciones para asegurar consistencia
+            DB::beginTransaction();
+            try {
+                // Buscar el lote por ID
+                $lote = Lote::findOrFail($id);
+
+                // Actualizar el lote con los datos validados
+                $validatedData = $validator->validated();
+                $lote->fill($validatedData);
+
+                // Asignar fecha_caducidad solo si expirable es true
+                if ($lote->expirable) {
+                    $lote->fecha_caducidad = $validatedData['fecha_caducidad'];
+                }
+
+                // Guardar el lote
+                $lote->save();
+
+                DB::commit();
+                return response()->json($lote, 200);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Error al actualizar lote: ' . $e->getMessage());
+                return response()->json(['error' => 'Error al actualizar el lote'], 500);
+            }
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error al actualizar lote: ' . $e->getMessage());
-            return response()->json(['error' => 'Error al actualizar el lote'], 500);
+            Log::error('Error en update: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al procesar la solicitud'], 500);
         }
     }
-
 
     // Eliminar un lote existente
     public function destroy($id)
     {
-        // Buscar el lote por ID
-        $lote = Lote::find($id);
+        try {
+            // Verificar permiso
+            if (!$this->verificarPermiso('Puede eliminar lotes')) {
+                return response()->json(['error' => 'No tienes permiso para eliminar lotes'], 403);
+            }
 
-        if (!$lote) {
-            return response()->json(['message' => 'Lote no encontrado'], 404);
+            // Buscar el lote por ID
+            $lote = Lote::find($id);
+
+            if (!$lote) {
+                return response()->json(['message' => 'Lote no encontrado'], 404);
+            }
+
+            // Eliminar el lote
+            $lote->delete();
+
+            return response()->json(['message' => 'Lote eliminado correctamente'], 200);
+        } catch (\Exception $e) {
+            Log::error('Error en destroy: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al eliminar el lote'], 500);
         }
-
-        // Eliminar el lote
-        $lote->delete();
-
-        return response()->json(['message' => 'Lote eliminado correctamente'], 200);
     }
 
-
-    //paginacioncion de lotes
-
+    // Paginación de lotes
     public function paginatedIndex(Request $request)
     {
-        // Validar la solicitud
-        $validator = Validator::make($request->all(), [
-            'id_producto' => 'sometimes|exists:producto,id_producto',
-            'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
-            // si el campo 'deleted_at' es nulo, el lote está activo
-            'deleted_at' => 'sometimes|nullable',
-            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
-        ]);
+        try {
+            // Validar la solicitud
+            $validator = Validator::make($request->all(), [
+                'id_producto' => 'sometimes|exists:producto,id_producto',
+                'id_proveedor' => 'sometimes|exists:proveedor,id_proveedor',
+                // si el campo 'deleted_at' es nulo, el lote está activo
+                'deleted_at' => 'sometimes|nullable',
+                'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Obtener los datos validados
+            $validatedData = $validator->validated();
+
+            // Construir la consulta con los filtros opcionales
+            $query = Lote::query();
+
+            if (isset($validatedData['id_producto'])) {
+                $query->where('id_producto', $validatedData['id_producto']);
+            }
+
+            if (isset($validatedData['id_proveedor'])) {
+                $query->where('id_proveedor', $validatedData['id_proveedor']);
+            }
+
+            if (isset($validatedData['deleted_at'])) {
+                $query->where('deleted_at', $validatedData['deleted_at']);
+            }
+
+            // Obtener el número de resultados por página, por defecto 15
+            $perPage = $validatedData['per_page'] ?? 15;
+
+            // Obtener los resultados paginados con las etiquetas asociadas
+            $lotes = $query->with('etiquetas')->paginate($perPage);
+
+            return response()->json($lotes);
+        } catch (\Exception $e) {
+            Log::error('Error en paginatedIndex: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al obtener los lotes paginados'], 500);
         }
-
-        // Obtener los datos validados
-        $validatedData = $validator->validated();
-
-        // Construir la consulta con los filtros opcionales
-        $query = Lote::query();
-
-        if (isset($validatedData['id_producto'])) {
-            $query->where('id_producto', $validatedData['id_producto']);
-        }
-
-        if (isset($validatedData['id_proveedor'])) {
-            $query->where('id_proveedor', $validatedData['id_proveedor']);
-        }
-
-        if (isset($validatedData['deleted_at'])) {
-            $query->where('deleted_at', $validatedData['deleted_at']);
-        }
-
-        // Obtener el número de resultados por página, por defecto 15
-        $perPage = $validatedData['per_page'] ?? 15;
-
-        // Obtener los resultados paginados con las etiquetas asociadas
-        $lotes = $query->with('etiquetas')->paginate($perPage);
-
-        return response()->json($lotes);
     }
-
 
     public function verificarLotesExpirados()
     {
-        Log::info('Ejecutando la función verificarLotesExpirados');
-        // Obtener la fecha y hora actual del servidor
-        $fechaActual = now();
+        try {
+            Log::info('Ejecutando la función verificarLotesExpirados');
+            // Obtener la fecha y hora actual del servidor
+            $fechaActual = now();
 
-        // Buscar lotes expirables que no tengan la etiqueta "expirada" y cuya fecha de caducidad ya haya pasado
-        $lotesExpirados = Lote::where('expirable', true)
-            ->where('fecha_caducidad', '<', $fechaActual)
-            ->whereDoesntHave('etiquetas', function ($query) {
-                $query->where('nombre', 'expirada');
-            })
-            ->get();
+            // Buscar lotes expirables que no tengan la etiqueta "expirada" y cuya fecha de caducidad ya haya pasado
+            $lotesExpirados = Lote::where('expirable', true)
+                ->where('fecha_caducidad', '<', $fechaActual)
+                ->whereDoesntHave('etiquetas', function ($query) {
+                    $query->where('nombre', 'expirada');
+                })
+                ->get();
 
-        foreach ($lotesExpirados as $lote) {
-            // Crear o encontrar la etiqueta "expirada"
-            $etiquetaExpirada = Etiqueta::firstOrCreate(
-                ['nombre' => 'expirada'],  // Condición de búsqueda
-                [
-                    'color_hex' => '#FF0000',
-                    'descripcion' => 'Producto expirado',
-                    'categoria' => 'Advertencia',
-                    'prioridad' => 'alta',
-                ]
-            );
+            foreach ($lotesExpirados as $lote) {
+                // Crear o encontrar la etiqueta "expirada"
+                $etiquetaExpirada = Etiqueta::firstOrCreate(
+                    ['nombre' => 'expirada'],  // Condición de búsqueda
+                    [
+                        'color_hex' => '#FF0000',
+                        'descripcion' => 'Producto expirado',
+                        'categoria' => 'Advertencia',
+                        'prioridad' => 'alta',
+                    ]
+                );
 
-            // Asignar la etiqueta "expirada" al lote
-            $lote->etiquetas()->syncWithoutDetaching([$etiquetaExpirada->id_etiqueta]);
+                // Asignar la etiqueta "expirada" al lote
+                $lote->etiquetas()->syncWithoutDetaching([$etiquetaExpirada->id_etiqueta]);
 
-            // Obtener el producto asociado al lote
-            $producto = Producto::find($lote->id_producto);
+                // Obtener el producto asociado al lote
+                $producto = Producto::find($lote->id_producto);
 
-            if ($producto) {
-                // Asignar la etiqueta "expirada" al producto sin eliminar las etiquetas anteriores
-                $producto->etiquetas()->syncWithoutDetaching([$etiquetaExpirada->id_etiqueta]);
-            } else {
-                // Manejo de error: Producto no encontrado
-                Log::error("Producto no encontrado con ID: " . $lote->id_producto);
+                if ($producto) {
+                    // Asignar la etiqueta "expirada" al producto sin eliminar las etiquetas anteriores
+                    $producto->etiquetas()->syncWithoutDetaching([$etiquetaExpirada->id_etiqueta]);
+                } else {
+                    // Manejo de error: Producto no encontrado
+                    Log::error("Producto no encontrado con ID: " . $lote->id_producto);
+                }
+
+                // Registrar que el lote ha sido marcado como expirado
+                Log::info('Lote con ID ' . $lote->id_lote . ' marcado como expirado.');
             }
-
-            // Registrar que el lote ha sido marcado como expirado
-            Log::info('Lote con ID ' . $lote->id_lote . ' marcado como expirado.');
+        } catch (\Exception $e) {
+            Log::error('Error en verificarLotesExpirados: ' . $e->getMessage());
         }
     }
 
-   
+    /**
+     * Verifica si el usuario autenticado tiene un permiso específico.*/
+    private function verificarPermiso($permisoNombre)
+    {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarPermiso: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un rol específico.
+     *
+     * @param string $rolNombre
+     * @return bool
+     */
+    private function verificarRol($rolNombre)
+    {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->nombre === $rolNombre) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarRol: ' . $e->getMessage());
+            return false;
+        }
+    }
 }

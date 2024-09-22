@@ -19,6 +19,9 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
 - **Relaciones entre Modelos**: Maneja relaciones complejas entre productos, proveedores, lotes y sitios.
 - **Paginación**: Soporta la paginación para manejar grandes conjuntos de datos.
 - **Transacciones de Base de Datos**: Asegura la consistencia de los datos mediante transacciones.
+- **Integracion de Paypal para los cobros**: Confiabilidad para gestionar cobros.
+- **ChatBot**: Chatbot donde se pueden agregar preguntas y respuestas(NO IA).
+- **Manejo de eventos**: El servidor maneja de manera interna ciertos puntos, como poner etiquetas de expirado y deshabilitar las cuentas demos sin necesidad de intervencion.
 
 ## Requisitos
 
@@ -28,23 +31,23 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
 
 1. **Instalar Laravel**: Si aún no tienes Laravel instalado, puedes hacerlo con:
 
-    ```bash
+  ```bash
     composer global require laravel/installer
-    ```
+   ```
 
 2. **Clonar el Repositorio**: Clona el repositorio o haz un fork:
 
-    ```bash
+  ```bash
     git clone https://github.com/StefanoIG/APWII/tree/main
-    ```
+  ```
 
-    O realiza un fork en [GitHub](https://github.com/StefanoIG/APWII/tree/main) y clónalo.
+  O realiza un fork en [GitHub](https://github.com/StefanoIG/APWII/tree/main) y clónalo.
 
 3. **Instalar Dependencias**: Navega a la carpeta del proyecto y ejecuta:
 
-    ```bash
+  ```bash
     composer install
-    ```
+  ```
 
 4. **Configurar el Archivo `.env`**: Copia el archivo de ejemplo y configura las variables necesarias:
 
@@ -79,18 +82,34 @@ Este proyecto es el backend de un sistema de inventario desarrollado con [Larave
 
 Recuerda reemplazar `tu_correo_electronico@gmail.com` con tu dirección de correo electrónico y `tu_clave_de_aplicacion_generada` con la clave de aplicación generada en la configuración de tu cuenta de Google.
 
+6. **Verificar Extensiones de PhP**: Asegúrate de que la extensión ZIP esté habilitada en tu archivo php.ini. Esta extensión es necesaria para la integración con PayPal.
 
-6. **Ejecutar Migraciones**: Configura la base de datos con:
+  ```bash
+    extension=zip
+  ```
 
-    ```bash
-    php artisan migrate
-    ```
+  Que esto este descomentado, es decir sin el ";"
 
-7. **Iniciar el Servidor**: Inicia el servidor de desarrollo con:
+7. **Configurar Paypal**: Regístrate en PayPal Developer(<https://developer.paypal.com/>) y crea una nueva aplicación para obtener las credenciales de sandbox. Añade las siguientes variables al archivo .env:
 
-    ```bash
-    php artisan serve
-    ```
+  ```bash
+        PAYPAL_MODE=sandbox
+        PAYPAL_SANDBOX_CLIENT_ID=tu_client_id_aqui
+        PAYPAL_SANDBOX_CLIENT_SECRET=tu_client_secret_aqui
+        PAYPAL_BASE_URL=<https://api-m.sandbox.paypal.com
+  ```
+
+8. **Ejecutar  Migraciones**:Configura la base de datos en env y luego ejecuta las migraciones con:
+
+  ```bash
+        php artisan migrate
+  ```
+
+9. **Iniciar el Servidor**:Inicia el servidor de desarrollo con::
+
+  ```bash
+        php artisan serve
+  ```
 
 ## Uso
 
@@ -132,16 +151,16 @@ La documentación del proyecto está disponible en `public/docs`. Fue generada c
 Este proyecto fue desarrollado por:
 
 ## Backend
+
 - 🧑‍💻 Stefano Aguilar (Desarrollador Principal)
 - 👩‍💻 Cristhian Ortiz (Dev)
 - 👨‍💻 Julio Arias     (Dev y Docs)
 
 ## FrontEnd
+
 - 👩‍💻 Josthin Mosquera (Dev)
 - 👨‍💻 Josthin Baque     (Dev)
 
-
-Agradecemos sus contribuciones y esfuerzo en el desarrollo del sistema.
 
 ### Cómo Contribuir
 
@@ -150,4 +169,3 @@ Agradecemos sus contribuciones y esfuerzo en el desarrollo del sistema.
 3. **Crear una Rama**: Crea una nueva rama para tus cambios.
 4. **Realizar Cambios**: Realiza los cambios necesarios en tu rama.
 5. **Enviar un Pull Request**: Envía un pull request con una descripción detallada de tus cambios.
-

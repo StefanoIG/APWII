@@ -34,5 +34,10 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'paypal' => [
+    'client_id' => env('PAYPAL_SANDBOX_CLIENT_ID'),
+    'secret' => env('PAYPAL_SANDBOX_CLIENT_SECRET'),
+    'base_url' => env('PAYPAL_BASE_URL'),
+],
 
 ];

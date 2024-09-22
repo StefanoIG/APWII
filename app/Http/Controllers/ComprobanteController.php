@@ -10,12 +10,21 @@ use Barryvdh\DomPDF\Facade\Pdf; // Asegúrate de importar DomPDF
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB; // Importar la clase DB
 use App\Models\Lote; // Importar el modelo Lote
+use Illuminate\Support\Facades\Auth; // Importar la clase Auth
 
 class ComprobanteController extends Controller
 {
     // Obtener todos los comprobantes
     public function index()
     {
+        $user = Auth::user();
+        Log::info('Usuario autenticado: ' . $user->id);
+    
+        // Verificar permiso
+        if (!$this->verificarPermiso('Puede ver comprobantes')) {
+            return response()->json(['error' => 'No tienes permiso para ver comprobantes'], 403);
+        }
+    
         try {
             $comprobantes = Comprobante::all();
             return response()->json($comprobantes);
@@ -25,49 +34,55 @@ class ComprobanteController extends Controller
         }
     }
 
-   // Crear un nuevo comprobante
-public function store(Request $request)
-{
-    DB::beginTransaction();
-
-    try {
-        // Validar la solicitud
-        $validatedData = $request->validate([
-            'fecha_emision' => 'required|date',
-            'id_lote' => 'required|exists:lote,id_lote',
-            'usuario_id' => 'required|exists:usuarios,id',
-            'id_producto' => 'required|exists:producto,id_producto',
-            'cantidad' => 'required|integer',
-            'precio_total' => 'required|numeric'
-        ]);
-
-        // Verificar si el lote está expirado
-        if (!$this->verificarLoteExpirado($validatedData['id_lote'])) {
-            return response()->json(['error' => 'No se pueden extraer productos de un lote expirado.'], 400);
-        }
-
-        // Verificar que el lote tenga suficientes productos
-        $lote = Lote::findOrFail($validatedData['id_lote']);
-        if ($lote->cantidad < $validatedData['cantidad']) {
-            return response()->json(['error' => 'El lote no tiene suficientes productos.'], 400);
-        }
-
-        // Crear el comprobante
-        $comprobante = Comprobante::create($validatedData);
-
-        // Actualizar la cantidad de productos en el lote
-        $lote->cantidad -= $validatedData['cantidad'];
-        $lote->save();
-
-        DB::commit();
-
-        return response()->json($comprobante, 201);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Error al crear comprobante: ' . $e->getMessage());
-        return response()->json(['error' => 'Error en el servidor', 'details' => $e->getMessage()], 500);
-    }
-}
+  // Crear un nuevo comprobante
+  public function store(Request $request)
+  {
+      DB::beginTransaction();
+  
+      try {
+          $validator = Validator::make($request->all(), [
+              'fecha_emision' => 'required|date',
+              'id_lote' => 'required|exists:lote,id_lote',
+              'usuario_id' => 'required|exists:usuarios,id',
+              'id_producto' => 'required|exists:producto,id_producto',
+              'cantidad' => 'required|integer',
+              'precio_total' => 'required|numeric'
+          ]);
+  
+          if ($validator->fails()) {
+              return response()->json(['errors' => $validator->errors()], 422);
+          }
+  
+          // Obtener datos validados
+          $validatedData = $validator->validated(); // Aquí se asigna la variable
+  
+          // Verificar si el lote está expirado
+          if (!$this->verificarLoteExpirado($validatedData['id_lote'])) {
+              return response()->json(['error' => 'No se pueden extraer productos de un lote expirado.'], 400);
+          }
+  
+          // Verificar que el lote tenga suficientes productos
+          $lote = Lote::findOrFail($validatedData['id_lote']);
+          if ($lote->cantidad < $validatedData['cantidad']) {
+              return response()->json(['error' => 'El lote no tiene suficientes productos.'], 400);
+          }
+  
+          // Crear el comprobante
+          $comprobante = Comprobante::create($validatedData);
+  
+          // Actualizar la cantidad de productos en el lote
+          $lote->cantidad -= $validatedData['cantidad'];
+          $lote->save();
+  
+          DB::commit();
+  
+          return response()->json($comprobante, 201);
+      } catch (\Exception $e) {
+          DB::rollBack();
+          Log::error('Error al crear comprobante: ' . $e->getMessage());
+          return response()->json(['error' => 'Error en el servidor', 'details' => $e->getMessage()], 500);
+      }
+  }  
 
 
     // Método para mostrar el comprobante en PDF
@@ -128,18 +143,25 @@ public function store(Request $request)
         }
     }
     
+    
     // Mostrar un comprobante específico
     public function show($id)
     {
+        // Verificar permiso
+        if (!$this->verificarPermiso('Puede ver comprobantes')) {
+            return response()->json(['error' => 'No tienes permiso para ver comprobantes'], 403);
+        }
+    
         $comprobante = Comprobante::find($id);
-
+    
         if (!$comprobante) {
             return response()->json(['error' => 'Comprobante no encontrado'], 404);
         }
-
+    
         return response()->json($comprobante);
     }
 
+    
     public function paginatedIndex(Request $request)
     {
         // Validar la solicitud
@@ -197,6 +219,7 @@ public function store(Request $request)
     }
 
 
+
      // Función para verificar si el lote tiene la etiqueta "expirada"
      private function verificarLoteExpirado($id_lote)
      {
@@ -209,4 +232,63 @@ public function store(Request $request)
  
          return true;
      }
+
+/**
+ * Verifica si el usuario autenticado tiene un permiso específico.
+ */
+private function verificarPermiso($permisoNombre)
+{
+    try {
+        $user = Auth::user();
+        $roles = $user->roles;
+
+        // Agregar log para verificar los roles asignados
+        Log::info('Roles del usuario: ' . json_encode($roles->pluck('nombre')));
+
+        // Si el usuario tiene el rol de administrador, dar acceso automáticamente
+        foreach ($roles as $rol) {
+            if ($rol->nombre === 'Administrador') {
+                return true; // Administrador tiene acceso completo
+            }
+        }
+
+        // Si no es administrador, verificar el permiso específico
+        foreach ($roles as $rol) {
+            if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                return true;
+            }
+        }
+
+        return false; // No tiene permisos
+    } catch (\Exception $e) {
+        Log::error('Error en verificarPermiso: ' . $e->getMessage());
+        return false;
+    }
+}
+
+    /**
+     * Verifica si el usuario autenticado tiene un rol específico.
+     *
+     * @param string $rolNombre
+     * @return bool
+     */
+    private function verificarRol($rolNombre)
+    {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->nombre === $rolNombre) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarRol: ' . $e->getMessage());
+            return false;
+        }
+    }
+
 }
