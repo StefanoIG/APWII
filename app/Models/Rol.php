@@ -10,7 +10,7 @@ class Rol extends Model
 
     protected $table = 'roles';  // Especifica el nombre de la tabla si es diferente de la convención singular del nombre del modelo
     use SoftDeletes;
-    
+
     protected $fillable = ['nombre', 'descripcion'];
 
     // Relación muchos a muchos con permisos
@@ -22,6 +22,6 @@ class Rol extends Model
     // Relación muchos a muchos con usuarios
     public function usuarios()
     {
-        return $this->belongsToMany(Usuario::class, 'usuario_rol', 'rol_id', 'usuario_id');
+        return $this->belongsToMany(Usuario::class, 'usuarios_rol', 'rol_id', 'usuario_id');
     }
 }

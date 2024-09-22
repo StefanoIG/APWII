@@ -89,14 +89,14 @@ class Usuario extends Authenticatable implements JWTSubject
     public function asignarRol($rolNombre)
     {
         $rol = Rol::where('nombre', $rolNombre)->firstOrFail();
-        $this->roles()->attach($rol);
+        $this->roles()->attach($rol->id); 
     }
 
     // Remover un rol del usuario
     public function removerRol($rolNombre)
     {
         $rol = Rol::where('nombre', $rolNombre)->firstOrFail();
-        $this->roles()->detach($rol);
+        $this->roles()->detach($rol->id);
     }
 
     // Nueva relación uno a uno o uno a muchos con rol

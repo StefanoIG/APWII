@@ -30,12 +30,15 @@ use App\Models\Planes;
 use App\Models\Factura;
 use App\Models\DetalleFactura;
 use App\Models\Tenant;
+use App\Models\Sitio;
 
 use App\Jobs\CreateDatabase;
 use App\Jobs\MigrateDatabase;
 
 
 use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
+use Stancl\Tenancy\Jobs\CreateDatabase as JobsCreateDatabase;
+use Stancl\Tenancy\Jobs\MigrateDatabase as JobsMigrateDatabase;
 
 class UsuarioController extends Controller
 
@@ -124,10 +127,10 @@ class UsuarioController extends Controller
             'cedula' => 'required|string|max:10|unique:usuarios,cedula',
             'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
             'password' => 'required|string|min:6',
-            'rol_id' => 'required|exists:roles,id', // Validación para el campo rol_id
-            'sitio_id' => 'required_if:rol_id,' . $this->getRoleIdByName('Empleado') . '|exists:sitio,id_sitio', // Rol empleado
-            'id_plan' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|exists:planes,id_plan', // Rol owner
-            'metodo_pago' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|in:1,2', // Validación para el método de pago para owner
+            'rol_id' => 'required|exists:roles,id',  // Aquí validas que exista el rol en la tabla roles
+            'sitio_id' => 'required_if:rol_id,' . $this->getRoleIdByName('Empleado') . '|exists:sitio,id_sitio',
+            'id_plan' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|exists:planes,id_plan',
+            'metodo_pago' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|in:1,2',
         ]);
 
         if ($validator->fails()) {
@@ -136,86 +139,25 @@ class UsuarioController extends Controller
 
         DB::beginTransaction();
         try {
-            // Buscar el rol por ID
+            // Crear el usuario
+            $usuario = $this->createUser($request);
+
+            // Obtener el rol basado en el rol_id proporcionado
             $rol = Rol::find($request->rol_id);
 
-            // Crear el usuario
-            $usuario = Usuario::create([
-                'nombre' => $request->nombre,
-                'apellido' => $request->apellido,
-                'telefono' => $request->telefono,
-                'cedula' => $request->cedula,
-                'correo_electronico' => $request->correo_electronico,
-                'password' => $request->password,
-                'rol_id' => $request->rol_id,  // Relación con la tabla de roles
-                'id_plan' => $request->id_plan ?? null,
-                'suscripcion' => 'pendiente',  // Estado pendiente hasta confirmar el pago
-            ]);
-
-
+            // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
-                // Llamamos a la función para crear el tenant
-                $this->createTenantForOwner($usuario);
+                $this->handleOwnerRegistration($request, $usuario);
+            } elseif ($rol->nombre === 'Empleado') {
+                $this->handleEmpleadoRegistration($request, $usuario);
             }
 
-            if ($rol->nombre === 'Owner') {
-                if ($request->metodo_pago == 1) {
-                    // Opción 1: PayPal
-                    $paymentResult = $this->processPayment($request->id_plan, $usuario);
+            // Asocia el rol al usuario después de crearlo
+            $usuario->roles()->attach($rol->id);  // Pasamos el ID del rol
 
-                    if (!$paymentResult['status']) {
-                        DB::rollBack();
-                        return response()->json(['errors' => 'Error en el proceso de pago. Inténtelo de nuevo.'], 500);
-                    }
+            DB::commit();
 
-                    DB::commit();
-                    return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
-                } elseif ($request->metodo_pago == 2) {
-                    // Opción 2: Transferencia Bancaria
-
-                    // Crear la factura antes de notificar a los administradores
-                    $plan = Planes::find($request->id_plan);
-                    $paymentPreferences = json_decode($plan->payment_preferences, true);
-                    $setupFee = $paymentPreferences['setup_fee']['value'];
-
-                    $factura = Factura::create([
-                        'usuario_id' => $usuario->id,
-                        'metodo_pago_id' => 2, // ID para transferencia bancaria
-                        'total' => $setupFee,
-                        'estado' => 'pendiente',
-                    ]);
-
-                    DetalleFactura::create([
-                        'factura_id' => $factura->id,
-                        'descripcion' => "Pago suscripción",
-                        'cantidad' => 1,
-                        'precio_unitario' => $setupFee,
-                        'subtotal' => $setupFee,
-                    ]);
-
-                    // Notificar a los administradores
-                    $admins = Usuario::whereHas('rol', function ($query) {
-                        $query->where('nombre', 'Admin');
-                    })->get();
-
-                    foreach ($admins as $admin) {
-                        Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
-                    }
-
-                    // Enviar mensaje al usuario indicando que el pago será confirmado
-                    Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
-
-                    DB::commit();
-                    return response()->json(['message' => 'Usuario creado exitosamente. Se te notificará por correo cuando tu pago sea confirmado.'], 201);
-                }
-            } else {
-                DB::commit();
-                //funcion que asigna el rol automaticamente
-                $usuario->roles()->attach($rol);
-                // Enviar correo de bienvenida
-                Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
-                return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
-            }
+            return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error al crear usuario: ' . $e->getMessage());
@@ -224,41 +166,116 @@ class UsuarioController extends Controller
     }
 
 
-    //funcion para crear el tenant y definir la bd
-    protected function createTenantForOwner(Usuario $user)
+    private function createUser(Request $request)
     {
-        // Creamos un Tenant y especificamos el nombre de la base de datos
-        $tenant = Tenant::create([
-            'tenancy_db_name' => 'empresa_bd_' . Str::slug($user->name), // Se usa el nombre del usuario o empresa
-            'tenancy_db_username' => 'usuario_bd_' . Str::slug($user->name),
-            'tenancy_db_password' => 'password_segura', // Puedes generar una contraseña segura
+        return Usuario::create([
+            'nombre' => $request->nombre,
+            'apellido' => $request->apellido,
+            'telefono' => $request->telefono,
+            'cedula' => $request->cedula,
+            'correo_electronico' => $request->correo_electronico,
+            'password' => $request->password,
         ]);
-
-        // Si tienes multi-dominios, puedes asociar un dominio al tenant
-        $tenant->domains()->create([
-            'domain' => Str::slug($user->name) . '.miapp.com',
-        ]);
-
-        // Crear y migrar la base de datos del tenant
-        $tenant->run(function ($tenant) {
-            dispatch_sync(new CreateDatabase($tenant)); // Crea la nueva base de datos
-            dispatch_sync(new MigrateDatabase($tenant)); // Ejecuta las migraciones
-        });
-
-        // Aquí puedes realizar cualquier otra configuración para el tenant
-
-        return $tenant;
     }
-
 
     /**
      * Obtener el ID del rol por nombre.
      */
-    private function getRoleIdByName($rolNombre)
+    private function getRoleIdByName($roleName)
     {
-        $rol = Rol::where('nombre', $rolNombre)->first();
-        return $rol ? $rol->id : null;
+        return Rol::where('nombre', $roleName)->first()->id;
     }
+
+
+
+    //Funcion encargada del registro de owner
+    protected function handleOwnerRegistration($request, $usuario)
+    {
+        // Lógica específica para el rol "Owner"
+        // $this->createTenantForOwner($usuario);
+
+        if ($request->metodo_pago == 1) {
+            $this->processPaypalPayment($request, $usuario);
+        } elseif ($request->metodo_pago == 2) { // Transferencia bancaria
+            $this->processBankTransfer($request, $usuario);
+        }
+    }
+
+    //Funcion encargada del registro de empleado
+    protected function handleEmpleadoRegistration($request, $usuario)
+    {
+        // Lógica específica para el rol "Empleado"
+        $sitio = Sitio::find($request->sitio_id);
+        $usuario->sitio()->associate($sitio);
+        $usuario->save();
+        Mail::to($usuario->correo_electronico)->send(new WelcomeMail($usuario));
+    }
+
+    //Funcion para procesar el pago por paypal
+    protected function processPaypalPayment($request, $usuario)
+    {
+        // Lógica para procesar pago por PayPal
+        $paymentResult = $this->processPayment($request->id_plan, $usuario);
+        if (!$paymentResult['status']) {
+            throw new \Exception('Error en el proceso de pago.');
+        }
+        return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
+    }
+
+    protected function processBankTransfer($request, $usuario)
+    {
+        // Crear la factura antes de notificar a los administradores
+        $plan = Planes::find($request->id_plan);
+        $paymentPreferences = json_decode($plan->payment_preferences, true);
+        $setupFee = $paymentPreferences['setup_fee']['value'];
+
+        $factura = Factura::create([
+            'usuario_id' => $usuario->id,
+            'metodo_pago_id' => 2, // ID para transferencia bancaria
+            'total' => $setupFee,
+            'estado' => 'pendiente',
+        ]);
+
+        DetalleFactura::create([
+            'factura_id' => $factura->id,
+            'descripcion' => "Pago suscripción",
+            'cantidad' => 1,
+            'precio_unitario' => $setupFee,
+            'subtotal' => $setupFee,
+        ]);
+
+        // Notificar a los administradores
+        $admins = Usuario::whereHas('rol', function ($query) {
+            $query->where('nombre', 'Admin');
+        })->get();
+
+        foreach ($admins as $admin) {
+            Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
+        }
+
+        // Enviar mensaje al usuario indicando que el pago será confirmado
+        Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
+    }
+
+
+
+    //funcion para crear un tenant con tenancy for larvel
+    protected function createTenantForOwner($usuario)
+    {
+        // Crear un nuevo tenant
+        $tenant = Tenant::create([
+            'name' => $usuario->nombre . ' ' . $usuario->apellido,
+            'domain' => Str::slug($usuario->nombre . $usuario->apellido) . '.inventorypro.com',
+        ]);
+
+        // Asignar el usuario como owner del tenant
+        $tenant->usuarios()->attach($usuario->id);
+
+        // Ejecutar trabajos en segundo plano para crear la base de datos y migrar las tablas
+        JobsCreateDatabase::dispatch($tenant);
+        JobsMigrateDatabase::dispatch($tenant);
+    }
+
 
 
 
@@ -424,6 +441,7 @@ class UsuarioController extends Controller
     }
 
 
+    //Funciones para procesar pagos con paypal
 
     public function paymentCancel()
     {
@@ -434,10 +452,6 @@ class UsuarioController extends Controller
     {
         return response()->json(['status' => 'error', 'message' => 'Error en el pago. Inténtelo de nuevo.'], 500);
     }
-
-
-
-
 
 
     /**
