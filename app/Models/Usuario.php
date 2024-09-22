@@ -23,7 +23,7 @@ class Usuario extends Authenticatable implements JWTSubject
         'cedula', 
         'correo_electronico', 
         'password', 
-        'rol'
+        'rol_id' // Asegúrate de incluir rol_id en los campos asignables
     ];
 
     /**
@@ -97,5 +97,11 @@ class Usuario extends Authenticatable implements JWTSubject
     {
         $rol = Rol::where('nombre', $rolNombre)->firstOrFail();
         $this->roles()->detach($rol);
+    }
+
+    // Nueva relación uno a uno o uno a muchos con rol
+    public function rol(): BelongsTo
+    {
+        return $this->belongsTo(Rol::class, 'rol_id');
     }
 }

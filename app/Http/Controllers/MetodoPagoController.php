@@ -16,9 +16,18 @@ class MetodoPagoController extends Controller
 
     public function store(Request $request)
     {
-        
+        // Validar la solicitud
+        $validator = Validator::make($request->all(), [
+            'nombre_metodo' => 'required|string|max:255',
+            // otros campos y sus validaciones
+        ]);
 
-        $metodoPago = MetodoPago::create($request->all());
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Crear el método de pago
+        $metodoPago = MetodoPago::create($validator->validated());
         return response()->json($metodoPago, 201);
     }
 

@@ -33,7 +33,7 @@ class loginController extends Controller
             Log::info('Autenticación exitosa para el usuario: ' . $user->correo_electronico);
 
             // Configuración de la cookie con opciones SameSite y Secure
-            $secure = env('APP_ENV') === 'production'; // Solo marcar como 'Secure' en producción
+            $secure = ('APP_ENV') === 'production'; // Solo marcar como 'Secure' en producción
 
             $tokenCookie = cookie(
                 'token', // Nombre de la cookie

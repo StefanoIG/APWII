@@ -7,6 +7,8 @@ use App\Models\Sitio;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Lote;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Usuario;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\UsuarioController, verificarRol, verificarPermiso;
 
 class SitioController extends Controller
@@ -14,41 +16,61 @@ class SitioController extends Controller
     private function verificarPermiso($permisoNombre)
     {
         $user = Auth::user();
-
+        if (!$user) {
+            Log::error('Usuario no autenticado al verificar permiso: ' . $permisoNombre);
+            return false;
+        }
+        $user->load('roles.permisos');
+    
+        // Verificar si el usuario está autenticado
+        if (!$user) {
+            Log::error('Usuario no autenticado al verificar permiso: ' . $permisoNombre);
+            return false; // O manejar el error según sea necesario
+        }
+    
         // Obtener los roles asociados al usuario
-        $roles = $user->roles; // Asumiendo que el modelo Usuario tiene una relación con roles
-
+        $roles = $user->roles;
+    
+        // Comprobar si el usuario tiene roles
+        if ($roles->isEmpty()) {
+            Log::error('Usuario no tiene roles al verificar permiso: ' . $permisoNombre);
+            return false; // Si no tiene roles, no tiene permisos
+        }
+    
         // Iterar sobre cada rol del usuario
         foreach ($roles as $rol) {
+            Log::info('Verificando rol: ' . $rol->nombre);
             // Verificar si el rol tiene el permiso requerido
-            if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
-                return true;
+            $tienePermiso = $rol->permisos()->where('nombre', $permisoNombre)->exists();
+            if ($tienePermiso) {
+                Log::info('Permiso encontrado: ' . $permisoNombre . ' para el usuario: ' . $user->id);
+                return true; // Si encuentra el permiso, devuelve true
             }
         }
-
-        return false;
+    
+        Log::error('Permiso no encontrado: ' . $permisoNombre . ' para el usuario: ' . $user->id);
+        return false; // Si no encuentra el permiso, devuelve false
     }
-
-    /**
-     * Verifica si el usuario autenticado tiene un rol específico.
-     *
-     * @param string $rolNombre
-     * @return bool
-     */
+    
     private function verificarRol($rolNombre)
     {
         $user = Auth::user();
-
+    
+        // Verificar si el usuario está autenticado
+        if (!$user) {
+            return false; // O manejar el error según sea necesario
+        }
+    
         // Obtener los roles asociados al usuario
-        $roles = $user->roles; // Asumiendo que el modelo Usuario tiene una relación con roles
-
+        $roles = $user->roles;
+    
         // Verificar si alguno de los roles coincide con el nombre del rol requerido
         foreach ($roles as $rol) {
             if ($rol->nombre === $rolNombre) {
                 return true;
             }
         }
-
+    
         return false;
     }
 
@@ -81,31 +103,40 @@ class SitioController extends Controller
         return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
     }
 
+    
 
+ // Mostrar un sitio específico por ID
+ public function show($id)
+ {
+     // Buscar el sitio primero
+     $sitio = Sitio::find($id);
 
+     if (!$sitio) {
+         return response()->json(['error' => 'Sitio no encontrado'], 404);
+     }
 
-    // Mostrar un sitio específico por ID
-    public function show($id)
-    {
-        $sitio = Sitio::find($id);
+     // Permitir que los administradores vean cualquier sitio
+     if ($this->verificarRol('Admin')) {
+         return response()->json($sitio);
+     }
 
-        if (!$sitio) {
-            return response()->json(['error' => 'Sitio no encontrado'], 404);
-        }
+     // Para otros roles, se verifica el permiso
+     if (!$this->verificarPermiso('Puede ver informacion de todos los usuarios') && !$this->verificarPermiso('Puede ver informacion usuarios de un solo sitio')) {
+         return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
+     }
 
-        if (!$this->verificarPermiso('Puede ver informacion de todos los usuarios') && !$this->verificarPermiso('Puede ver informacion usuarios de un solo sitio')) {
-            return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
-        }
+     return response()->json($sitio);
+ }
 
-        return response()->json($sitio);
-    }
 
     public function store(Request $request)
     {
+        // Verifica si el usuario tiene permiso para crear sitios
         if (!$this->verificarPermiso('Puede crear sitios')) {
+            Log::error('Usuario no tiene permiso para crear sitios: ' . Auth::user()->id);
             return response()->json(['error' => 'No tienes permiso para crear sitios'], 403);
         }
-
+    
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
             'nombre_sitio' => 'required|string|max:255',
@@ -113,12 +144,13 @@ class SitioController extends Controller
             'ciudad' => 'required|string|max:255',
             'pais' => 'required|string|max:255',
             'id' => 'nullable|exists:usuarios,id',
-        ]);
-
+    ]);
+    
         if ($validator->fails()) {
+            Log::error('Validación fallida al crear sitio: ', $validator->errors()->toArray());
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
+    
         // Crear el sitio
         $sitio = Sitio::create([
             'nombre_sitio' => $request->nombre_sitio,
@@ -127,7 +159,8 @@ class SitioController extends Controller
             'pais' => $request->pais,
             'created_by' => $request->id,
         ]);
-
+    
+        Log::info('Sitio creado con éxito: ' . $sitio->id);
         return response()->json(['message' => 'Sitio creado con éxito', 'sitio' => $sitio], 201);
     }
 
@@ -135,6 +168,10 @@ class SitioController extends Controller
     public function update(Request $request, $id)
     {
         $sitio = Sitio::find($id);
+
+        if (!$this->verificarPermiso('Puede actualizar sitios')) {
+            return response()->json(['error' => 'No tienes permiso para actualizar sitios'], 403);
+        }
 
         if (!$sitio) {
             return response()->json(['error' => 'Sitio no encontrado'], 404);
@@ -163,21 +200,26 @@ class SitioController extends Controller
     // Eliminar un sitio (soft delete)
     public function destroy($id)
     {
+        if (!$this->verificarPermiso('Puede eliminar sitios')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar sitios'], 403);
+        }
+    
         $sitio = Sitio::find($id);
-
+    
         if (!$sitio) {
             return response()->json(['error' => 'Sitio no encontrado'], 404);
         }
-
+    
         if (!$this->verificarPermiso('Puede borrar sitios')) {
             return response()->json(['error' => 'No tienes permiso para eliminar sitios'], 403);
         }
-
+    
         // Realiza un soft delete
         $sitio->delete();
-
+    
         return response()->json(['message' => 'Sitio eliminado con éxito'], 200);
     }
+
 
     // Index paginado
     // Paginación de sitios según el rol del usuario
