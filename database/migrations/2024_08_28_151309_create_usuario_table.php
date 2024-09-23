@@ -19,8 +19,6 @@ return new class extends Migration
             $table->string('cedula')->unique();
             $table->string('correo_electronico')->unique();
             $table->string('password');
-            $table->unsignedBigInteger('rol_id'); // Agregar columna rol_id
-            $table->foreign('rol_id')->references('id')->on('roles')->onDelete('cascade'); // Definir la relación con la tabla roles
             $table->softDeletes(); // Agregar columna para soft deletes
 
             //llaves fk

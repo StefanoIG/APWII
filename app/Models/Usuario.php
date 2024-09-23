@@ -17,20 +17,20 @@ class Usuario extends Authenticatable implements JWTSubject
      * Atributos asignables masivamente.
      */
     protected $fillable = [
-        'nombre', 
-        'apellido', 
-        'telefono', 
-        'cedula', 
-        'correo_electronico', 
-        'password', 
-        'rol_id' // Asegúrate de incluir rol_id en los campos asignables
+        'nombre',
+        'apellido',
+        'telefono',
+        'cedula',
+        'correo_electronico',
+        'password',
+        
     ];
 
     /**
      * Atributos que se deben ocultar en las respuestas JSON.
      */
     protected $hidden = [
-        'password', 
+        'password',
         'remember_token'
     ];
 
@@ -89,7 +89,7 @@ class Usuario extends Authenticatable implements JWTSubject
     public function asignarRol($rolNombre)
     {
         $rol = Rol::where('nombre', $rolNombre)->firstOrFail();
-        $this->roles()->attach($rol->id); 
+        $this->roles()->attach($rol->id);
     }
 
     // Remover un rol del usuario
@@ -103,5 +103,12 @@ class Usuario extends Authenticatable implements JWTSubject
     public function rol(): BelongsTo
     {
         return $this->belongsTo(Rol::class, 'rol_id');
+    }
+    
+    public function tenants()
+    {
+        return $this->belongsToMany(Tenant::class, 'usuario_tenant', 'usuario_id', 'tenant_id')
+            ->withPivot('rol_id')  // Para manejar roles específicos por tenant
+            ->withTimestamps();
     }
 }

@@ -19,6 +19,7 @@ use App\Http\Controllers\RolController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\UsuarioRolController;
 use App\Http\Controllers\RolPermisoController;
+Route::post('/planes', [PlanController::class, 'store']);
 
 Route::prefix('roles')->group(function() {
     Route::get('/', [RolController::class, 'index']);  // Obtener todos los roles
@@ -27,6 +28,8 @@ Route::prefix('roles')->group(function() {
     Route::put('{id}', [RolController::class, 'update']); // Actualizar un rol
     Route::delete('{id}', [RolController::class, 'destroy']); // Eliminar un rol
 });
+Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
+
 
 Route::prefix('permisos')->group(function() {
     Route::get('/', [PermisoController::class, 'index']);  // Obtener todos los permisos
@@ -54,6 +57,8 @@ Route::get('/payment/success', [UsuarioController::class, 'paymentSuccess'])->na
 Route::get('/payment/cancel', [UsuarioController::class, 'paymentCancel'])->name('paypal.payment.cancel');
 Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->name('paypal.payment.failure');
 
+
+Route::post('registerTe', [UsuarioController::class, 'registerTe']);
 Route::get('/planes', [PlanController::class, 'index']);
 
 //rutas chatbot
@@ -154,7 +159,6 @@ Route::middleware('auth:api')->group(function () {
 
     //rutas de planes
     
-    Route::post('/planes', [PlanController::class, 'store']);
     Route::get('/planes/{id}', [PlanController::class, 'show']);
     Route::put('/planes/{id}', [PlanController::class, 'update']);
 
@@ -168,7 +172,6 @@ Route::middleware('auth:api')->group(function () {
     //rutas de metodos de pago
     Route::get('/metodos-pago', [MetodoPagoController::class, 'index']);
     Route::get('/metodos-pago/{id}', [MetodoPagoController::class, 'show']);
-    Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
     Route::put('/metodos-pago/{id}', [MetodoPagoController::class, 'update']);
     Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
 });

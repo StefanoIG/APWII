@@ -127,7 +127,7 @@ class UsuarioController extends Controller
             'cedula' => 'required|string|max:10|unique:usuarios,cedula',
             'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
             'password' => 'required|string|min:6',
-            'rol_id' => 'required|exists:roles,id',  // Aquí validas que exista el rol en la tabla roles
+            'rol_id' => 'required|exists:roles,id', // Asegúrate de que se valida que el rol existe
             'sitio_id' => 'required_if:rol_id,' . $this->getRoleIdByName('Empleado') . '|exists:sitio,id_sitio',
             'id_plan' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|exists:planes,id_plan',
             'metodo_pago' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|in:1,2',
@@ -142,19 +142,26 @@ class UsuarioController extends Controller
             // Crear el usuario
             $usuario = $this->createUser($request);
 
-            // Obtener el rol basado en el rol_id proporcionado
-            $rol = Rol::find($request->rol_id);
+            // Asignar el rol al usuario (a través de la tabla usuario_rol)
+            $usuario->roles()->attach($request->rol_id);
 
+           
+
+            // Obtener el rol asociado al usuario
+            $rol = Rol::find($request->rol_id);
+            
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
                 $this->handleOwnerRegistration($request, $usuario);
             } elseif ($rol->nombre === 'Empleado') {
+
                 $this->handleEmpleadoRegistration($request, $usuario);
+
             }
 
-            // Asocia el rol al usuario después de crearlo
-            $usuario->roles()->attach($rol->id);  // Pasamos el ID del rol
+            
 
+            
             DB::commit();
 
             return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
@@ -195,8 +202,10 @@ class UsuarioController extends Controller
         // $this->createTenantForOwner($usuario);
 
         if ($request->metodo_pago == 1) {
+           
             $this->processPaypalPayment($request, $usuario);
         } elseif ($request->metodo_pago == 2) { // Transferencia bancaria
+            
             $this->processBankTransfer($request, $usuario);
         }
     }
@@ -226,10 +235,12 @@ class UsuarioController extends Controller
     {
         // Crear la factura antes de notificar a los administradores
         $plan = Planes::find($request->id_plan);
+        
         $paymentPreferences = json_decode($plan->payment_preferences, true);
         $setupFee = $paymentPreferences['setup_fee']['value'];
 
         $factura = Factura::create([
+            
             'usuario_id' => $usuario->id,
             'metodo_pago_id' => 2, // ID para transferencia bancaria
             'total' => $setupFee,
@@ -237,6 +248,7 @@ class UsuarioController extends Controller
         ]);
 
         DetalleFactura::create([
+           
             'factura_id' => $factura->id,
             'descripcion' => "Pago suscripción",
             'cantidad' => 1,
@@ -245,10 +257,15 @@ class UsuarioController extends Controller
         ]);
 
         // Notificar a los administradores
-        $admins = Usuario::whereHas('rol', function ($query) {
+       
+        $admins = Usuario::whereHas('roles', function ($query) {
             $query->where('nombre', 'Admin');
         })->get();
+        
 
+      
+
+        
         foreach ($admins as $admin) {
             Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
         }
@@ -257,6 +274,46 @@ class UsuarioController extends Controller
         Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
     }
 
+
+    public function registerTe(Request $request)
+    {
+        // Validar los datos
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:255',
+            'apellido' => 'required|string|max:255',
+            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Crear el usuario con los datos básicos
+            $usuario = Usuario::create([
+                'nombre' => $request->nombre,
+                'apellido' => $request->apellido,
+                'correo_electronico' => $request->correo_electronico,
+                'password' => $request->password,
+                //enviar cedula y correo al azar
+                'cedula' => Str::random(10),
+                'telefono' => Str::random(10),
+            ]);
+
+            // Crear un tenant asociado a este usuario
+            $this->createTenantForOwner($usuario);
+
+            DB::commit();
+
+            return response()->json(['message' => 'Usuario y Tenant creados exitosamente', 'usuario' => $usuario], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al registrar usuario y crear tenant: ' . $e->getMessage());
+            return response()->json(['errors' => 'Error al registrar usuario y crear tenant'], 500);
+        }
+    }
 
 
     //funcion para crear un tenant con tenancy for larvel
