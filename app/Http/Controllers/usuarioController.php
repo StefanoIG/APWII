@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Artisan;
 //mails
 use App\Mail\RecoveryPassword;
 use App\Mail\WelcomeMail;
@@ -145,23 +146,19 @@ class UsuarioController extends Controller
             // Asignar el rol al usuario (a través de la tabla usuario_rol)
             $usuario->roles()->attach($request->rol_id);
 
-           
+
 
             // Obtener el rol asociado al usuario
             $rol = Rol::find($request->rol_id);
-            
+
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
                 $this->handleOwnerRegistration($request, $usuario);
             } elseif ($rol->nombre === 'Empleado') {
 
                 $this->handleEmpleadoRegistration($request, $usuario);
-
             }
 
-            
-
-            
             DB::commit();
 
             return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
@@ -199,13 +196,13 @@ class UsuarioController extends Controller
     protected function handleOwnerRegistration($request, $usuario)
     {
         // Lógica específica para el rol "Owner"
-        // $this->createTenantForOwner($usuario);
+        $this->createTenantForOwner($usuario);
 
         if ($request->metodo_pago == 1) {
-           
+
             $this->processPaypalPayment($request, $usuario);
         } elseif ($request->metodo_pago == 2) { // Transferencia bancaria
-            
+
             $this->processBankTransfer($request, $usuario);
         }
     }
@@ -235,12 +232,12 @@ class UsuarioController extends Controller
     {
         // Crear la factura antes de notificar a los administradores
         $plan = Planes::find($request->id_plan);
-        
+
         $paymentPreferences = json_decode($plan->payment_preferences, true);
         $setupFee = $paymentPreferences['setup_fee']['value'];
 
         $factura = Factura::create([
-            
+
             'usuario_id' => $usuario->id,
             'metodo_pago_id' => 2, // ID para transferencia bancaria
             'total' => $setupFee,
@@ -248,7 +245,7 @@ class UsuarioController extends Controller
         ]);
 
         DetalleFactura::create([
-           
+
             'factura_id' => $factura->id,
             'descripcion' => "Pago suscripción",
             'cantidad' => 1,
@@ -257,15 +254,11 @@ class UsuarioController extends Controller
         ]);
 
         // Notificar a los administradores
-       
+
         $admins = Usuario::whereHas('roles', function ($query) {
             $query->where('nombre', 'Admin');
         })->get();
-        
 
-      
-
-        
         foreach ($admins as $admin) {
             Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
         }
@@ -275,48 +268,8 @@ class UsuarioController extends Controller
     }
 
 
-    public function registerTe(Request $request)
-    {
-        // Validar los datos
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'required|string|max:255',
-            'apellido' => 'required|string|max:255',
-            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
-            'password' => 'required|string|min:6',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        DB::beginTransaction();
-        try {
-            // Crear el usuario con los datos básicos
-            $usuario = Usuario::create([
-                'nombre' => $request->nombre,
-                'apellido' => $request->apellido,
-                'correo_electronico' => $request->correo_electronico,
-                'password' => $request->password,
-                //enviar cedula y correo al azar
-                'cedula' => Str::random(10),
-                'telefono' => Str::random(10),
-            ]);
-
-            // Crear un tenant asociado a este usuario
-            $this->createTenantForOwner($usuario);
-
-            DB::commit();
-
-            return response()->json(['message' => 'Usuario y Tenant creados exitosamente', 'usuario' => $usuario], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error al registrar usuario y crear tenant: ' . $e->getMessage());
-            return response()->json(['errors' => 'Error al registrar usuario y crear tenant'], 500);
-        }
-    }
 
 
-    //funcion para crear un tenant con tenancy for larvel
     protected function createTenantForOwner($usuario)
     {
         // Crear un nuevo tenant
@@ -325,12 +278,69 @@ class UsuarioController extends Controller
             'domain' => Str::slug($usuario->nombre . $usuario->apellido) . '.inventorypro.com',
         ]);
 
-        // Asignar el usuario como owner del tenant
-        $tenant->usuarios()->attach($usuario->id);
+        // Asignar el usuario como owner del tenant en la base de datos principal
+        $tenant->usuarios()->attach($usuario->id, ['rol_id' => 3]);
 
-        // Ejecutar trabajos en segundo plano para crear la base de datos y migrar las tablas
-        JobsCreateDatabase::dispatch($tenant);
-        JobsMigrateDatabase::dispatch($tenant);
+        // Ruta donde se creará la base de datos SQLite
+        $databasePath = database_path('tenants/' . Str::slug($usuario->nombre . $usuario->apellido) . '.sqlite');
+
+        // Asegurarse de que la carpeta 'tenants' existe
+        if (!file_exists(database_path('tenants'))) {
+            mkdir(database_path('tenants'), 0755, true);
+        }
+
+        // Crear un archivo SQLite vacío para el tenant
+        if (!file_exists($databasePath)) {
+            touch($databasePath);
+        }
+
+        // Cambiar dinámicamente la conexión de base de datos para este tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => $databasePath,
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        // Establecer la conexión del tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Ejecutar las migraciones y el seeder en la base de datos del tenant
+        Artisan::call('migrate', [
+            '--database' => 'tenant',
+            '--path' => 'database/migrations',
+            '--force' => true,
+        ]);
+
+        Artisan::call('db:seed', [
+            '--class' => 'RolesAndPermissionsSeeder',
+            '--database' => 'tenant',
+            '--force' => true,
+        ]);
+
+        // Insertar el usuario en la base de datos del tenant
+        $usuarioTenant = DB::connection('tenant')->table('usuarios')->insertGetId([
+            'nombre' => $usuario->nombre,
+            'apellido' => $usuario->apellido,
+            'telefono' => $usuario->telefono,
+            'cedula' => $usuario->cedula,
+            'correo_electronico' => $usuario->correo_electronico,
+            'password' => $usuario->password,  // Asume que ya está encriptada
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Obtener el rol 'Admin' del tenant
+        $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Admin')->first();
+
+        // Asignar el rol de 'Admin' al usuario en la base de datos del tenant
+        DB::connection('tenant')->table('usuario_rol')->insert([
+            'usuario_id' => $usuarioTenant,  // ID del usuario en la base de datos del tenant
+            'rol_id' => $adminRol->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
 
