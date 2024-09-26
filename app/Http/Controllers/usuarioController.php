@@ -134,6 +134,7 @@ class UsuarioController extends Controller
             'metodo_pago' => 'required_if:rol_id,' . $this->getRoleIdByName('Owner') . '|in:1,2',
         ]);
 
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
@@ -685,8 +686,6 @@ class UsuarioController extends Controller
                 $query->where('nombre', 'Admin');
             })->pluck('correo_electronico')->toArray();
 
-            //imrimir el $adminEmail
-            // dd($adminEmail);
 
             // Verificar que haya correos de administradores
             if (empty($adminEmail)) {
