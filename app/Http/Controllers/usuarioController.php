@@ -33,13 +33,10 @@ use App\Models\DetalleFactura;
 use App\Models\Tenant;
 use App\Models\Sitio;
 
-use App\Jobs\CreateDatabase;
-use App\Jobs\MigrateDatabase;
+use Illuminate\Support\Facades\File;
 
 
 use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
-use Stancl\Tenancy\Jobs\CreateDatabase as JobsCreateDatabase;
-use Stancl\Tenancy\Jobs\MigrateDatabase as JobsMigrateDatabase;
 
 class UsuarioController extends Controller
 
@@ -273,76 +270,128 @@ class UsuarioController extends Controller
 
     protected function createTenantForOwner($usuario)
     {
-        // Crear un nuevo tenant
-        $tenant = Tenant::create([
-            'name' => $usuario->nombre . ' ' . $usuario->apellido,
-            'domain' => Str::slug($usuario->nombre . $usuario->apellido) . '.inventorypro.com',
-        ]);
+        try {
+            // Generar un código aleatorio alfanumérico para asegurar la unicidad
+            $codigoUnico = substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 6)), 0, 8);
 
-        // Asignar el usuario como owner del tenant en la base de datos principal
-        $tenant->usuarios()->attach($usuario->id, ['rol_id' => 3]);
+            // Crear un nuevo tenant
+            $tenant = Tenant::create([
+                'name' => $usuario->nombre . ' ' . $usuario->apellido,
+                'domain' => Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico) . '.inventorypro.com',
+            ]);
 
-        // Ruta donde se creará la base de datos SQLite
-        $databasePath = database_path('tenants/' . Str::slug($usuario->nombre . $usuario->apellido) . '.sqlite');
+            Log::info('Tenant creado: ' . $tenant->name);
 
-        // Asegurarse de que la carpeta 'tenants' existe
-        if (!file_exists(database_path('tenants'))) {
-            mkdir(database_path('tenants'), 0755, true);
+            // Asignar el usuario como owner del tenant en la base de datos principal
+            $tenant->usuarios()->attach($usuario->id, ['rol_id' => 3]);
+            Log::info('Usuario asignado como owner del tenant');
+
+            // Ruta donde se creará la base de datos SQLite
+            $databasePath = database_path('tenants/' . Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico) . '.sqlite');
+
+            // Asegurarse de que la carpeta 'tenants' existe
+            if (!File::exists(database_path('tenants'))) {
+                File::makeDirectory(database_path('tenants'), 0755, true);
+            }
+
+            // Crear un archivo SQLite vacío para el tenant
+            if (!File::exists($databasePath)) {
+                File::put($databasePath, '');
+            }
+
+            Log::info('Base de datos SQLite creada en: ' . $databasePath);
+
+            // Cambiar dinámicamente la conexión de base de datos para este tenant
+            config(['database.connections.tenant' => [
+                'driver' => 'sqlite',
+                'database' => $databasePath,
+                'prefix' => '',
+                'foreign_key_constraints' => true,
+            ]]);
+
+            // Establecer la conexión del tenant
+            DB::purge('tenant');
+            DB::reconnect('tenant');
+            Log::info('Conexión a la base de datos del tenant establecida.');
+
+            // Excluir las migraciones específicas y ejecutar el resto de las migraciones
+            $excludedMigrations = [
+                '2019_09_15_000020_create_domains_table',
+                '2019_09_15_000010_create_tenants_table',
+                '2024_09_15_031803_create_factura_table',
+                '2024_09_15_031639_create_metodo_pago_table',
+                
+                '2024_09_12_220920_create__q_a_table',
+                '2019_09_15_000010_create_tenants_table',
+                '2024_09_23_014630_create_usuario_tenant_table',
+                '2024_09_15_031824_create_detallef_actura_table',
+                '2024_09_08_051844_create_demo_table',
+                '2024_09_15_031656_create_promociones_table',
+                '2024_09_15_062531_add_demo_expiry_date_to_demo_table',
+                // Añadir más migraciones si es necesario segun como se determine a posteriror
+            ];
+
+            $migrations = collect(File::allFiles(database_path('migrations')))
+                ->map(function ($file) {
+                    return pathinfo($file, PATHINFO_FILENAME);
+                })
+                ->filter(function ($migration) use ($excludedMigrations) {
+                    return !in_array($migration, $excludedMigrations);
+                });
+
+            foreach ($migrations as $migration) {
+                Artisan::call('migrate', [
+                    '--database' => 'tenant',
+                    '--path' => 'database/migrations/' . $migration . '.php',
+                    '--force' => true,
+                ]);
+                Log::info('Migración ejecutada: ' . $migration);
+            }
+
+            // Ejecutar el seeder en la base de datos del tenant
+            Artisan::call('db:seed', [
+                '--class' => 'RolesAndPermissionsSeeder',
+                '--database' => 'tenant',
+                '--force' => true,
+            ]);
+
+            Log::info('Seeder ejecutado en el tenant.');
+
+            // Insertar el usuario en la base de datos del tenant
+            $usuarioTenant = DB::connection('tenant')->table('usuarios')->insertGetId([
+                'nombre' => $usuario->nombre,
+                'apellido' => $usuario->apellido,
+                'telefono' => $usuario->telefono,
+                'cedula' => $usuario->cedula,
+                'correo_electronico' => $usuario->correo_electronico,
+                'password' => $usuario->password,  // Asume que ya está encriptada
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            Log::info('Usuario insertado en la base de datos del tenant, ID: ' . $usuarioTenant);
+
+            // Obtener el rol 'Admin' del tenant
+            $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Admin')->first();
+
+            if ($adminRol) {
+                // Asignar el rol de 'Admin' al usuario en la base de datos del tenant
+                DB::connection('tenant')->table('usuario_rol')->insert([
+                    'usuario_id' => $usuarioTenant,
+                    'rol_id' => $adminRol->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                Log::info('Rol "Admin" asignado al usuario en el tenant.');
+            } else {
+                Log::warning('Rol "Admin" no encontrado en el tenant.');
+            }
+        } catch (\Exception $e) {
+            Log::error('Error en la creación del tenant: ' . $e->getMessage());
+            return response()->json(['error' => 'Error en la creación del tenant'], 500);
         }
-
-        // Crear un archivo SQLite vacío para el tenant
-        if (!file_exists($databasePath)) {
-            touch($databasePath);
-        }
-
-        // Cambiar dinámicamente la conexión de base de datos para este tenant
-        config(['database.connections.tenant' => [
-            'driver' => 'sqlite',
-            'database' => $databasePath,
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-        ]]);
-
-        // Establecer la conexión del tenant
-        DB::purge('tenant');
-        DB::reconnect('tenant');
-
-        // Ejecutar las migraciones y el seeder en la base de datos del tenant
-        Artisan::call('migrate', [
-            '--database' => 'tenant',
-            '--path' => 'database/migrations',
-            '--force' => true,
-        ]);
-
-        Artisan::call('db:seed', [
-            '--class' => 'RolesAndPermissionsSeeder',
-            '--database' => 'tenant',
-            '--force' => true,
-        ]);
-
-        // Insertar el usuario en la base de datos del tenant
-        $usuarioTenant = DB::connection('tenant')->table('usuarios')->insertGetId([
-            'nombre' => $usuario->nombre,
-            'apellido' => $usuario->apellido,
-            'telefono' => $usuario->telefono,
-            'cedula' => $usuario->cedula,
-            'correo_electronico' => $usuario->correo_electronico,
-            'password' => $usuario->password,  // Asume que ya está encriptada
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Obtener el rol 'Admin' del tenant
-        $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Admin')->first();
-
-        // Asignar el rol de 'Admin' al usuario en la base de datos del tenant
-        DB::connection('tenant')->table('usuario_rol')->insert([
-            'usuario_id' => $usuarioTenant,  // ID del usuario en la base de datos del tenant
-            'rol_id' => $adminRol->id,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
     }
+
 
 
 
