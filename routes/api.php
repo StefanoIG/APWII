@@ -20,6 +20,7 @@ use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\UsuarioRolController;
 use App\Http\Controllers\RolPermisoController;
 Route::post('/planes', [PlanController::class, 'store']);
+Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
 
 Route::prefix('roles')->group(function() {
     Route::get('/', [RolController::class, 'index']);  // Obtener todos los roles
@@ -91,7 +92,8 @@ Route::post('/proveedor', [ProveedorController::class, 'store']);
 
 //rutas protegidas
 Route::middleware('auth:api')->group(function () {
-
+    //register tenant de owners
+    Route::post('/registerTe', [UsuarioController::class, 'registerForOwner']);
     //rutas chatbot
     Route::post('/questions', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
     Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
@@ -153,7 +155,6 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/metodo-pagination', [MetodoPagoController::class, 'paginatedIndex']);
 
     //rutas de confirmar pagos
-    Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
     Route::post('/rechazar-pago/{id}', [UsuarioController::class, 'rechazarPago'])->name('pago.rechazar');
 
 

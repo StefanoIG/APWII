@@ -168,6 +168,97 @@ class UsuarioController extends Controller
     }
 
 
+    public function registerForOwner(Request $request)
+    {
+        // Validar que se haya enviado el nombre de la base de datos
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+            'nombre' => 'required|string|max:255',
+            'apellido' => 'required|string|max:255',
+            'telefono' => 'required|string|max:20',
+            'cedula' => 'required|string|max:10|unique:usuarios,cedula',
+            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+            'password' => 'required|string|min:6',
+            'rol_id' => 'required|exists:roles,id', // Validar que el rol existe
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
+        // Obtener los roles permitidos en el tenant (excluir 'Admin' y 'Owner')
+        $allowedRoles = DB::connection('tenant')->table('roles')->whereNotIn('nombre', ['Admin', 'Owner'])->pluck('id');
+
+        // Comenzar transacción
+        DB::beginTransaction();
+        try {
+            // Verificar si el rol que intenta asignar está permitido
+            if (!in_array($request->rol_id, $allowedRoles->toArray())) {
+                return response()->json(['error' => 'Rol no permitido'], 403);
+            }
+
+            // Crear el usuario en la base de datos del tenant
+            $usuario = DB::connection('tenant')->table('usuarios')->insertGetId([
+                'nombre' => $request->nombre,
+                'apellido' => $request->apellido,
+                'telefono' => $request->telefono,
+                'cedula' => $request->cedula,
+                'correo_electronico' => $request->correo_electronico,
+                'password' => $request->password,
+            ]);
+
+            // Asignar el rol al usuario (a través de la tabla usuario_rol)
+            DB::connection('tenant')->table('usuario_rol')->insert([
+                'usuario_id' => $usuario,
+                'rol_id' => $request->rol_id,
+            ]);
+
+            // Commit de la transacción
+            DB::commit();
+
+            return response()->json(['message' => 'Usuario creado exitosamente'], 201);
+        } catch (\Exception $e) {
+            // Rollback si algo falla
+            DB::rollBack();
+            Log::error('Error al crear usuario en el tenant: ' . $e->getMessage());
+            return response()->json(['errors' => 'Error al crear usuario'], 500);
+        }
+    }
+
+    /**
+     * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
+     */
+    protected function setTenantConnection($databaseName)
+    {
+        // Configurar la conexión a la base de datos del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        // Purga la conexión anterior y reconecta con el tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Establecer el nombre de la conexión de forma predeterminada
+        DB::setDefaultConnection('tenant');
+    }
+
+
+
     private function createUser(Request $request)
     {
         return Usuario::create([
@@ -320,7 +411,7 @@ class UsuarioController extends Controller
                 '2019_09_15_000010_create_tenants_table',
                 '2024_09_15_031803_create_factura_table',
                 '2024_09_15_031639_create_metodo_pago_table',
-                
+
                 '2024_09_12_220920_create__q_a_table',
                 '2019_09_15_000010_create_tenants_table',
                 '2024_09_23_014630_create_usuario_tenant_table',
@@ -399,24 +490,109 @@ class UsuarioController extends Controller
 
     public function confirmarPago($id)
     {
-        // Buscar la factura correspondiente
-        $factura = Factura::find($id);
-        if (!$factura) {
-            return response()->json(['error' => 'Factura no encontrada'], 404);
+        // Iniciar una transacción en la base de datos principal
+        DB::beginTransaction();
+        try {
+            // Buscar la factura correspondiente en la base de datos principal
+            $factura = Factura::find($id);
+            if (!$factura) {
+                return response()->json(['error' => 'Factura no encontrada'], 404);
+            }
+
+            // Actualizar el estado de la factura a 'pagado' en la base de datos principal
+            $factura->estado = 'pagado';
+            $factura->save();
+
+            // Obtener el usuario asociado en la base de datos principal
+            $usuario = Usuario::find($factura->usuario_id);
+            if (!$usuario) {
+                return response()->json(['error' => 'Usuario no encontrado'], 404);
+            }
+
+            // Actualizar el estado del usuario a 'habilitado' en la base de datos principal
+            $usuario->estado = 'habilitado';
+            $usuario->save();
+
+            //obtener el correo del usuario
+            $correo = $usuario->correo_electronico;
+
+            // Obtener todas las bases de datos de tenants
+            $tenantDatabases = File::files(database_path('tenants'));
+
+            foreach ($tenantDatabases as $tenantDatabase) {
+                // Extraer el nombre de la base de datos
+                $databasePath = $tenantDatabase->getPathname();
+
+                try {
+                    // Configurar la conexión para el tenant
+                    config(['database.connections.tenant' => [
+                        'driver' => 'sqlite',
+                        'database' => $databasePath,
+                        'prefix' => '',
+                        'foreign_key_constraints' => true,
+                    ]]);
+
+                    // Establecer la conexión del tenant
+                    DB::purge('tenant');
+                    DB::reconnect('tenant');
+
+                    Log::info('Conexión establecida a la base de datos del tenant: ' . $databasePath);
+
+                    // Iniciar una transacción en la base de datos del tenant
+                    DB::connection('tenant')->beginTransaction();
+
+                    // Buscar el usuario en la base de datos del tenant por correo
+                    $tenantUsuario = DB::connection('tenant')->table('usuarios')
+                        ->where('correo_electronico', $correo)
+                        ->first();
+
+                    if ($tenantUsuario) {
+                        // Actualizar el estado del usuario a 'habilitado' en la base de datos del tenant
+                        DB::connection('tenant')->table('usuarios')
+                            ->where('id', $tenantUsuario->id)
+                            ->update(['estado' => 'habilitado']);
+
+                        Log::info('Estado del usuario actualizado en el tenant: ' . $databasePath);
+
+                        // Confirmar la transacción en la base de datos del tenant
+                        DB::connection('tenant')->commit();
+                    } else {
+                        // Si no se encuentra el usuario, continuar con el siguiente tenant
+                        Log::warning('Usuario no encontrado en el tenant: ' . $databasePath);
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    // Revertir la transacción en la base de datos del tenant
+                    DB::connection('tenant')->rollBack();
+                    Log::error('Error al actualizar el estado del usuario en el tenant: ' . $e->getMessage());
+
+                    // Revertir la transacción en la base de datos principal
+                    DB::rollBack();
+                    Log::error('Error al confirmar el pago, deshaciendo todo: ' . $e->getMessage());
+
+                    return response()->json(['error' => 'Error al confirmar el pago'], 500);
+                }
+            }
+
+            // Confirmar la transacción en la base de datos principal
+            DB::commit();
+
+            // Enviar correos de confirmación y rechazo
+            Mail::to($usuario->correo_electronico)->send(new ConfirmacionPagoMail($usuario));
+
+            return response()->json(['message' => 'Pago confirmado y correos enviados'], 200);
+        } catch (\Exception $e) {
+            // Revertir la transacción en la base de datos principal
+            DB::rollBack();
+            Log::error('Error al confirmar el pago: ' . $e->getMessage());
+
+            return response()->json(['error' => 'Error al confirmar el pago'], 500);
         }
-
-        // Actualizar estado a confirmado
-        $factura->estado = 'pagado';
-        $factura->save();
-
-        // Obtener el usuario asociado
-        $usuario = Usuario::find($factura->usuario_id);
-
-        // Enviar correo de confirmación
-        Mail::to($usuario->correo_electronico)->send(new ConfirmacionPagoMail($usuario));
-
-        return response()->json(['message' => 'Pago confirmado y correo enviado'], 200);
     }
+
+
+
+
 
     public function rechazarPago($id)
     {
@@ -577,20 +753,15 @@ class UsuarioController extends Controller
     public function update(Request $request, $id)
     {
         $user = Auth::user(); // Obtiene el usuario autenticado
-        $usuario = Usuario::findOrFail($id);
 
-        // Verificar si el usuario tiene el permiso para actualizar otros usuarios
-        if (!$this->verificarPermiso('Puede actualizar usuarios') && $user->id !== $usuario->id) {
-            return response()->json(['error' => 'No tienes permisos para actualizar esta información'], 403);
-        }
-
-        // Validación de datos
+        // Validar que se haya enviado el nombre de la base de datos
         $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string', // Se añade la validación del tenant
             'nombre' => 'sometimes|required|string',
             'apellido' => 'sometimes|required|string',
             'telefono' => 'sometimes|required|string',
-            'cedula' => 'sometimes|required|string|max:10|unique:usuarios,cedula,' . $usuario->id,
-            'correo_electronico' => 'sometimes|required|email|unique:usuarios,correo_electronico,' . $usuario->id,
+            'cedula' => 'sometimes|required|string|max:10|unique:usuarios,cedula,' . $id,
+            'correo_electronico' => 'sometimes|required|email|unique:usuarios,correo_electronico,' . $id,
             'contrasena' => 'sometimes|required|string|min:6',
             'rol_id' => 'sometimes|exists:roles,id', // Ahora se usa rol_id
         ]);
@@ -599,23 +770,55 @@ class UsuarioController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Actualización del usuario
-        if ($this->verificarPermiso('Puede actualizar empleados')) {
-            // Solo permitir actualización de ciertos campos para empleados
-            $requestData = $request->only(['nombre', 'apellido', 'telefono', 'cedula', 'correo_electronico']);
-            if ($request->has('contrasena')) {
-                $requestData['contrasena'] = ($request->contrasena);
-            }
-            $usuario->update($requestData);
-        } else {
-            // Admin puede actualizar todos los campos
-            if ($request->has('contrasena')) {
-                $request->merge(['contrasena' => $request->password]);
-            }
-            $usuario->update($request->all());
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
         }
 
-        return response()->json(['message' => 'Usuario actualizado exitosamente', 'usuario' => $usuario], 200);
+        // Obtener el usuario desde la base de datos del tenant
+        $usuario = DB::connection('tenant')->table('usuarios')->where('id', $id)->first();
+
+        if (!$usuario) {
+            return response()->json(['error' => 'Usuario no encontrado'], 404);
+        }
+
+        // Verificar si el usuario tiene el permiso para actualizar otros usuarios
+        if (!$this->verificarPermiso('Puede actualizar usuarios') && $user->id !== $usuario->id) {
+            return response()->json(['error' => 'No tienes permisos para actualizar esta información'], 403);
+        }
+
+        // Actualización del usuario
+        DB::beginTransaction();
+        try {
+            if ($this->verificarPermiso('Puede actualizar empleados')) {
+                // Solo permitir actualización de ciertos campos para empleados
+                $requestData = $request->only(['nombre', 'apellido', 'telefono', 'cedula', 'correo_electronico']);
+                if ($request->has('contrasena')) {
+                    $requestData['contrasena'] = $request->contrasena; // Almacenar sin encriptar
+                }
+                DB::connection('tenant')->table('usuarios')->where('id', $id)->update($requestData);
+            } else {
+                // Admin puede actualizar todos los campos
+                $requestData = $request->all();
+                if ($request->has('contrasena')) {
+                    $requestData['contrasena'] = $request->password;
+                }
+                DB::connection('tenant')->table('usuarios')->where('id', $id)->update($requestData);
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Usuario actualizado exitosamente'], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al actualizar usuario en el tenant: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al actualizar usuario'], 500);
+        }
     }
 
 

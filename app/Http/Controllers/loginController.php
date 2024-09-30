@@ -8,8 +8,8 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
-use App\Models\Tenant;
-use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Response;
 
 class loginController extends Controller
 {
@@ -25,45 +25,68 @@ class loginController extends Controller
             if ($token = Auth::attempt(['correo_electronico' => $credentials['correo_electronico'], 'password' => $credentials['password']])) {
                 $user = Auth::user();
 
-                // Si es admin o pertenece a la base de datos principal, devolvemos el token
-                if ($user->rol === 'Admin') {
-                    return $this->sendSuccessResponse($token, $user);
+                // Cargar roles del usuario desde la tabla intermedia
+                $user->load('roles'); // Asumiendo que la relación está definida como 'roles'
+
+                // Verificar si el usuario tiene el rol de 'Admin'
+                if ($user->roles->contains('nombre', 'Admin')) {
+                    return $this->sendSuccessResponse($token, $user, 'master');
                 }
             }
 
-            // Si no es admin, buscar en la base de datos principal si el usuario está asociado a algún tenant
-            $tenant = Tenant::whereHas('usuarios', function ($query) use ($credentials) {
-                $query->where('correo_electronico', $credentials['correo_electronico']);
-            })->first();
+            // Si no tiene rol de 'Admin', buscar en las bases de datos de tenants
+            Log::info('No se encontró rol de Admin en la base de datos principal. Buscando en tenants...');
 
-            if (!$tenant) {
-                Log::warning('Usuario no asociado a ningún tenant con el correo: ' . $credentials['correo_electronico']);
-                return response()->json(['error' => 'Usuario no encontrado en ningún tenant'], 404);
+            // Obtener todas las bases de datos de tenants
+            $tenantDatabases = File::files(database_path('tenants'));
+
+            foreach ($tenantDatabases as $tenantDatabase) {
+                // Extraer el nombre de la base de datos
+                $databasePath = $tenantDatabase->getPathname();
+
+                try {
+                    // Configurar la conexión para el tenant
+                    config(['database.connections.tenant' => [
+                        'driver' => 'sqlite',
+                        'database' => $databasePath,
+                        'prefix' => '',
+                        'foreign_key_constraints' => true,
+                    ]]);
+
+                    // Establecer la conexión del tenant
+                    DB::purge('tenant');
+                    DB::reconnect('tenant');
+
+                    Log::info('Conexión establecida a la base de datos del tenant: ' . $databasePath);
+
+                    // Intentar autenticar al usuario en la base de datos del tenant
+                    if ($token = Auth::attempt(['correo_electronico' => $credentials['correo_electronico'], 'password' => $credentials['password']])) {
+                        // Obtener el usuario autenticado desde el tenant
+                        $user = Auth::user();
+
+                        // Cargar roles del usuario desde la tabla intermedia
+                        $user->load('roles');
+
+                        // Comprobar si el usuario fue eliminado (soft delete)
+                        if ($user->deleted_at) {
+                            Log::warning('Intento de login para una cuenta eliminada: ' . $user->correo_electronico);
+                            return response()->json(['error' => 'Cuenta expirada'], 403);
+                        }
+
+                        Log::info('Autenticación exitosa en tenant: ' . $databasePath . ' para el usuario: ' . $user->correo_electronico);
+
+                        // Devolver respuesta exitosa con el token, rol y el nombre de la base de datos
+                        return $this->sendSuccessResponse($token, $user, basename($databasePath));
+                    } else {
+                        Log::info('Usuario no encontrado en tenant: ' . $databasePath);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error al conectar con el tenant: ' . $databasePath . '. Error: ' . $e->getMessage());
+                }
             }
 
-            // Cambiar la conexión a la base de datos del tenant
-            $this->switchToTenantDatabase($tenant);
-
-            // Intentar autenticar al usuario en la base de datos del tenant
-            if (!$token = Auth::attempt(['correo_electronico' => $credentials['correo_electronico'], 'password' => $credentials['password']])) {
-                Log::warning('Credenciales inválidas para el correo: ' . $credentials['correo_electronico']);
-                return response()->json(['error' => 'Credenciales inválidas'], 401);
-            }
-
-            // Obtener el usuario autenticado desde el tenant
-            $user = Auth::user();
-
-            // Comprobar si el usuario fue eliminado (soft delete)
-            if ($user->deleted_at) {
-                Log::warning('Intento de login para una cuenta eliminada: ' . $user->correo_electronico);
-                return response()->json(['error' => 'Cuenta expirada'], 403);
-            }
-
-            Log::info('Autenticación exitosa para el usuario: ' . $user->correo_electronico);
-
-            // Devolver respuesta exitosa con el token y rol del usuario
-            return $this->sendSuccessResponse($token, $user);
-
+            Log::warning('Usuario no encontrado en ningún tenant con el correo: ' . $credentials['correo_electronico']);
+            return response()->json(['error' => 'Usuario no encontrado en ningún tenant'], 404);
         } catch (\Exception $e) {
             Log::error('Error durante el proceso de login: ' . $e->getMessage());
             return response()->json(['error' => 'Error en el servidor'], 500);
@@ -71,39 +94,21 @@ class loginController extends Controller
     }
 
     /**
-     * Cambiar dinámicamente la conexión a la base de datos del tenant.
-     *
-     * @param Tenant $tenant
-     * @return void
-     */
-    protected function switchToTenantDatabase(Tenant $tenant)
-    {
-        // Configurar la conexión a la base de datos del tenant
-        Config::set('database.connections.tenant', [
-            'driver' => 'sqlite', // O el driver que uses (mysql, etc.)
-            'database' => database_path('tenants/' . $tenant->domain . '.sqlite'), // Aquí defines la base de datos del tenant
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-        ]);
-
-        // Reconectar a la base de datos del tenant
-        DB::purge('tenant');
-        DB::reconnect('tenant');
-        Log::info('Conexión cambiada a la base de datos del tenant: ' . $tenant->name);
-    }
-
-    /**
      * Enviar respuesta de éxito con cookies y token.
      *
      * @param string $token
      * @param \App\Models\User $user
+     * @param string $databaseName El nombre de la base de datos (puede ser 'master' o el nombre del archivo SQLite)
      * @return \Illuminate\Http\JsonResponse
      */
-    protected function sendSuccessResponse($token, $user)
+    protected function sendSuccessResponse($token, $user, $databaseName)
     {
         $secure = ('APP_ENV') === 'production'; // Solo marcar como 'Secure' en producción
 
-        // Crear cookies para el token y rol del usuario
+        // Extraer el primer rol del usuario (asumiendo que el usuario solo tiene un rol en este caso)
+        $role = $user->roles->first()->nombre ?? 'Sin rol';  // Verificamos si tiene al menos un rol
+
+        // Crear cookies para el token, rol y la base de datos del usuario
         $tokenCookie = cookie(
             'token',
             $token,
@@ -118,7 +123,19 @@ class loginController extends Controller
 
         $roleCookie = cookie(
             'role',
-            $user->rol,
+            $role, // Aquí obtenemos el rol del usuario
+            60, // Duración de 60 minutos (1 hora)
+            '/', // Ruta válida en todas las rutas
+            null, // Dominio (null para usar el dominio actual o agregar el tuyo para subdominios)
+            $secure, // Solo usar "secure" en producción
+            false, // HttpOnly en false para que sea accesible desde JavaScript
+            false, // Sin formato crudo
+            'Lax' // SameSite
+        );
+
+        $tenantDatabaseCookie = cookie(
+            'tenant_database',
+            $databaseName, // Nombre de la base de datos del tenant (o 'master')
             60, // Duración de 60 minutos (1 hora)
             '/', // Ruta válida en todas las rutas
             null, // Dominio (null para usar el dominio actual o agregar el tuyo para subdominios)
@@ -132,7 +149,8 @@ class loginController extends Controller
         return response()->json([
             'message' => 'Autenticación exitosa',
             'token' => $token,
-            'role' => $user->rol
-        ])->cookie($tokenCookie)->cookie($roleCookie);
+            'role' => $role,  // Enviar el rol del usuario en la respuesta
+            'tenant_database' => $databaseName // Enviar la base de datos del tenant en la respuesta
+        ])->cookie($tokenCookie)->cookie($roleCookie)->cookie($tenantDatabaseCookie);
     }
 }
