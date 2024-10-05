@@ -9,10 +9,31 @@ use App\Models\Lote;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Usuario;
 use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\UsuarioController, verificarRol, verificarPermiso;
+use Illuminate\Support\Facades\DB;
+
 
 class SitioController extends Controller
 {
+
+    protected function setTenantConnection($databaseName)
+    {
+        // Configurar la conexión a la base de datos del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        // Purga la conexión anterior y reconecta con el tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Establecer el nombre de la conexión de forma predeterminada
+        DB::setDefaultConnection('tenant');
+    }
+
+
     private function verificarPermiso($permisoNombre)
     {
         $user = Auth::user();
@@ -21,22 +42,22 @@ class SitioController extends Controller
             return false;
         }
         $user->load('roles.permisos');
-    
+
         // Verificar si el usuario está autenticado
         if (!$user) {
             Log::error('Usuario no autenticado al verificar permiso: ' . $permisoNombre);
             return false; // O manejar el error según sea necesario
         }
-    
+
         // Obtener los roles asociados al usuario
         $roles = $user->roles;
-    
+
         // Comprobar si el usuario tiene roles
         if ($roles->isEmpty()) {
             Log::error('Usuario no tiene roles al verificar permiso: ' . $permisoNombre);
             return false; // Si no tiene roles, no tiene permisos
         }
-    
+
         // Iterar sobre cada rol del usuario
         foreach ($roles as $rol) {
             Log::info('Verificando rol: ' . $rol->nombre);
@@ -47,111 +68,142 @@ class SitioController extends Controller
                 return true; // Si encuentra el permiso, devuelve true
             }
         }
-    
+
         Log::error('Permiso no encontrado: ' . $permisoNombre . ' para el usuario: ' . $user->id);
         return false; // Si no encuentra el permiso, devuelve false
     }
-    
+
     private function verificarRol($rolNombre)
     {
         $user = Auth::user();
-    
+
         // Verificar si el usuario está autenticado
         if (!$user) {
             return false; // O manejar el error según sea necesario
         }
-    
+
         // Obtener los roles asociados al usuario
         $roles = $user->roles;
-    
+
         // Verificar si alguno de los roles coincide con el nombre del rol requerido
         foreach ($roles as $rol) {
             if ($rol->nombre === $rolNombre) {
                 return true;
             }
         }
-    
+
         return false;
     }
 
 
 
     // Mostrar todos los sitios según el rol del usuario
-    public function index()
+    public function index(Request $request)
     {
+        // Validar que se haya enviado el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Conectar a la base de datos del tenant
+        try {
+            $this->setTenantConnection($request->tenant_database);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
         $user = Auth::user();
 
-        // Si el usuario es un empleado, solo puede ver los sitios donde su sitio_id coincide
         if ($this->verificarRol('Empleado')) {
             $sitios = Sitio::where('sitio_id', $user->sitio_id)->get();
             return response()->json($sitios);
         }
 
-        // Si el usuario es owner, solo puede ver los sitios que él haya creado
         if ($this->verificarRol('Owner')) {
             $sitios = Sitio::where('created_by', $user->id)->get();
             return response()->json($sitios);
         }
 
-        // Si el usuario es admin, puede ver todos los sitios
         if ($this->verificarRol('Admin')) {
             $sitios = Sitio::all();
             return response()->json($sitios);
         }
 
-        // Si no tiene ningún rol relevante, devolver un error
         return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
     }
 
-    
 
- // Mostrar un sitio específico por ID
- public function show($id)
- {
-     // Buscar el sitio primero
-     $sitio = Sitio::find($id);
+    // Mostrar un sitio específico por ID
+    public function show(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
 
-     if (!$sitio) {
-         return response()->json(['error' => 'Sitio no encontrado'], 404);
-     }
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
-     // Permitir que los administradores vean cualquier sitio
-     if ($this->verificarRol('Admin')) {
-         return response()->json($sitio);
-     }
+        try {
+            $this->setTenantConnection($request->tenant_database);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
 
-     // Para otros roles, se verifica el permiso
-     if (!$this->verificarPermiso('Puede ver informacion de todos los usuarios') && !$this->verificarPermiso('Puede ver informacion usuarios de un solo sitio')) {
-         return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
-     }
+        $sitio = Sitio::find($id);
+        if (!$sitio) {
+            return response()->json(['error' => 'Sitio no encontrado'], 404);
+        }
 
-     return response()->json($sitio);
- }
+        if (
+            $this->verificarRol('Admin') ||
+            $this->verificarPermiso('Puede ver informacion de todos los usuarios') ||
+            $this->verificarPermiso('Puede ver informacion usuarios de un solo sitio')
+        ) {
+            return response()->json($sitio);
+        }
+
+        return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
+    }
 
 
+    // Crear un sitio
     public function store(Request $request)
     {
-        // Verifica si el usuario tiene permiso para crear sitios
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $this->setTenantConnection($request->tenant_database);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
         if (!$this->verificarPermiso('Puede crear sitios')) {
-            Log::error('Usuario no tiene permiso para crear sitios: ' . Auth::user()->id);
             return response()->json(['error' => 'No tienes permiso para crear sitios'], 403);
         }
-    
-        // Validar la solicitud
+
         $validator = Validator::make($request->all(), [
             'nombre_sitio' => 'required|string|max:255',
             'direccion' => 'required|string|max:255',
             'ciudad' => 'required|string|max:255',
             'pais' => 'required|string|max:255',
             'id' => 'nullable|exists:usuarios,id',
-    ]);
-    
+        ]);
+
         if ($validator->fails()) {
-            Log::error('Validación fallida al crear sitio: ', $validator->errors()->toArray());
             return response()->json(['errors' => $validator->errors()], 422);
         }
-    
-        // Crear el sitio
+
         $sitio = Sitio::create([
             'nombre_sitio' => $request->nombre_sitio,
             'direccion' => $request->direccion,
@@ -159,20 +211,29 @@ class SitioController extends Controller
             'pais' => $request->pais,
             'created_by' => $request->id,
         ]);
-    
-        Log::info('Sitio creado con éxito: ' . $sitio->id);
+
         return response()->json(['message' => 'Sitio creado con éxito', 'sitio' => $sitio], 201);
     }
+
 
     // Actualizar un sitio
     public function update(Request $request, $id)
     {
-        $sitio = Sitio::find($id);
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
 
-        if (!$this->verificarPermiso('Puede actualizar sitios')) {
-            return response()->json(['error' => 'No tienes permiso para actualizar sitios'], 403);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        try {
+            $this->setTenantConnection($request->tenant_database);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+        $sitio = Sitio::find($id);
         if (!$sitio) {
             return response()->json(['error' => 'Sitio no encontrado'], 404);
         }
@@ -181,7 +242,6 @@ class SitioController extends Controller
             return response()->json(['error' => 'No tienes permiso para actualizar sitios'], 403);
         }
 
-        // Validar los datos actualizados
         $validatedData = $request->validate([
             'nombre_sitio' => 'sometimes|required|string|max:255',
             'direccion' => 'sometimes|required|string|max:255',
@@ -189,7 +249,6 @@ class SitioController extends Controller
             'pais' => 'sometimes|required|string|max:255',
         ]);
 
-        // Actualizar el sitio
         $sitio->update($validatedData);
 
         return response()->json(['message' => 'Sitio actualizado con éxito', 'sitio' => $sitio]);
@@ -197,26 +256,34 @@ class SitioController extends Controller
 
 
 
-    // Eliminar un sitio (soft delete)
-    public function destroy($id)
+    // Eliminar un sitio
+    public function destroy(Request $request, $id)
     {
-        if (!$this->verificarPermiso('Puede eliminar sitios')) {
-            return response()->json(['error' => 'No tienes permiso para eliminar sitios'], 403);
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
-    
+
+        try {
+            $this->setTenantConnection($request->tenant_database);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
         $sitio = Sitio::find($id);
-    
         if (!$sitio) {
             return response()->json(['error' => 'Sitio no encontrado'], 404);
         }
-    
+
         if (!$this->verificarPermiso('Puede borrar sitios')) {
             return response()->json(['error' => 'No tienes permiso para eliminar sitios'], 403);
         }
-    
-        // Realiza un soft delete
+
         $sitio->delete();
-    
+
         return response()->json(['message' => 'Sitio eliminado con éxito'], 200);
     }
 
@@ -225,9 +292,35 @@ class SitioController extends Controller
     // Paginación de sitios según el rol del usuario
     public function paginatedIndex(Request $request)
     {
-        $user = Auth::user();
+        // Validar que se haya enviado el nombre de la base de datos
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
+        ]);
 
-        // Validar la solicitud
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
+        // Verificar si el usuario está autenticado
+        $authUser = Auth::user();
+        if (!$authUser) {
+            return response()->json(['errors' => 'No estás autenticado.'], 401);
+        }
+
+        $user = $authUser;
+
+        // Validar los filtros solicitud
         $validator = Validator::make($request->all(), [
             'nombre_sitio' => 'sometimes|string|max:255',
             'direccion' => 'sometimes|string|max:255',

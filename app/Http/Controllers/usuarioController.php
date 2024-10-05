@@ -89,21 +89,62 @@ class UsuarioController extends Controller
         return false;
     }
 
+    /**
+     * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
+     */
+    protected function setTenantConnection($databaseName)
+    {
+        // Configurar la conexión a la base de datos del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        // Purga la conexión anterior y reconecta con el tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Establecer el nombre de la conexión de forma predeterminada
+        DB::setDefaultConnection('tenant');
+    }
+
 
 
     /**
      * Mostrar la lista de usuarios.
      */
-    public function index()
+    public function index(Request $request)
     {
+        // Validar que se haya enviado el nombre de la base de datos
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         $user = Auth::user(); // Obtiene el usuario autenticado
 
-        if ($this->verificarRol('admin')) {
-            // Admin puede ver todos los usuarios
-            $usuarios = Usuario::all();
+        if ($this->verificarRol('Owner')) {
+            // Admin puede ver todos los usuarios del tenant
+            $usuarios = DB::connection('tenant')->table('usuarios')->get();
         } else {
             // Empleado solo puede ver su propia información
-            $usuarios = Usuario::where('id', $user->id)->get();
+            $usuarios = DB::connection('tenant')->table('usuarios')->where('id', $user->id)->get();
         }
 
         return response()->json($usuarios);
@@ -236,26 +277,7 @@ class UsuarioController extends Controller
         }
     }
 
-    /**
-     * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
-     */
-    protected function setTenantConnection($databaseName)
-    {
-        // Configurar la conexión a la base de datos del tenant
-        config(['database.connections.tenant' => [
-            'driver' => 'sqlite',
-            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-        ]]);
 
-        // Purga la conexión anterior y reconecta con el tenant
-        DB::purge('tenant');
-        DB::reconnect('tenant');
-
-        // Establecer el nombre de la conexión de forma predeterminada
-        DB::setDefaultConnection('tenant');
-    }
 
 
 
@@ -1076,30 +1098,70 @@ class UsuarioController extends Controller
     }
 
     //Eliminar usuario
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        // Validar que se haya enviado el nombre de la base de datos
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         // Verificar si el usuario tiene el permiso para borrar usuarios
         if (!$this->verificarPermiso('Puede borrar usuarios')) {
             return response()->json(['error' => 'No tienes permiso para eliminar usuarios'], 403);
         }
 
-        // Buscar el usuario por ID
-        $usuario = Usuario::find($id);
+        // Buscar el usuario por ID en la base de datos del tenant
+        $usuario = DB::connection('tenant')->table('usuarios')->find($id);
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
         // Borrado lógico del usuario (soft delete)
-        $usuario->delete();
+        DB::connection('tenant')->table('usuarios')->where('id', $id)->delete();
 
         return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
     }
 
 
-
+    //Funcion para listar usuarios paginacion(Tenant)
     public function paginatedIndex(Request $request)
     {
+        // Validar que se haya enviado el nombre de la base de datos
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         // Verificar si el usuario está autenticado
         $authUser = Auth::user();
         if (!$authUser) {
@@ -1111,7 +1173,7 @@ class UsuarioController extends Controller
             return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
         }
 
-        // Validar la solicitud
+        // Validación de filtros en la solicitud
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|string|max:255',
             'apellido' => 'sometimes|string|max:255',
@@ -1130,8 +1192,113 @@ class UsuarioController extends Controller
         // Obtener los datos validados
         $validatedData = $validator->validated();
 
-        // Construir la consulta con los filtros opcionales
-        $query = Usuario::query();
+        // Construir la consulta en la base de datos del tenant
+        $query = DB::connection('tenant')->table('usuarios');
+
+        if (isset($validatedData['nombre'])) {
+            $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
+        }
+
+        if (isset($validatedData['apellido'])) {
+            $query->where('apellido', 'like', '%' . $validatedData['apellido'] . '%');
+        }
+
+        if (isset($validatedData['telefono'])) {
+            $query->where('telefono', 'like', '%' . $validatedData['telefono'] . '%');
+        }
+
+        if (isset($validatedData['cedula'])) {
+            $query->where('cedula', 'like', '%' . $validatedData['cedula'] . '%');
+        }
+
+        if (isset($validatedData['correo_electronico'])) {
+            $query->where('correo_electronico', 'like', '%' . $validatedData['correo_electronico'] . '%');
+        }
+
+        if (isset($validatedData['rol'])) {
+            $query->where('rol', $validatedData['rol']);
+        }
+
+        // Filtrar por deleted_at
+        if (isset($validatedData['deleted_at'])) {
+            if ($validatedData['deleted_at']) {
+                $query->onlyTrashed(); // Solo usuarios eliminados
+            } else {
+                $query->withTrashed(); // Todos los usuarios, incluidos los eliminados
+            }
+        }
+
+        // Limitar la información basada en el rol del usuario autenticado
+        if ($this->verificarRol('owner')) {
+            $query->whereHas('owners', function ($q) use ($authUser) {
+                $q->where('owner_id', $authUser->id);
+            });
+        }
+
+        // Obtener el número de resultados por página, por defecto 15
+        $perPage = $validatedData['per_page'] ?? 15;
+
+        // Obtener los resultados paginados
+        $usuarios = $query->paginate($perPage);
+
+        return response()->json($usuarios);
+    }
+    
+    //Funcion para paginar (Database main)
+    public function paginatedIndexAdmin(Request $request)
+    {
+        // Validar que se haya enviado el nombre de la base de datos
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener el nombre de la base de datos del tenant desde el request
+        $tenantDatabase = $request->tenant_database;
+
+        // Establecer la conexión al tenant usando el nombre de la base de datos
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
+        // Verificar si el usuario está autenticado
+        $authUser = Auth::user();
+        if (!$authUser) {
+            return response()->json(['errors' => 'No estás autenticado.'], 401);
+        }
+
+        // Verificar si el usuario tiene el rol de empleado y denegar acceso
+        if ($this->verificarRol('Empleado')) {
+            return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
+        }
+
+        // Validación de filtros en la solicitud
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'sometimes|string|max:255',
+            'apellido' => 'sometimes|string|max:255',
+            'telefono' => 'sometimes|string|max:255',
+            'cedula' => 'sometimes|string|max:10',
+            'correo_electronico' => 'sometimes|string|max:255',
+            'rol' => 'sometimes|in:Empleado,Admin,Demo,Owner',
+            'deleted_at' => 'sometimes|boolean', // Usar booleano para filtrar activos/inactivos
+            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Obtener los datos validados
+        $validatedData = $validator->validated();
+
+        // Construir la consulta en la base de datos del tenant
+        $query = DB::connection('tenant')->table('usuarios');
 
         if (isset($validatedData['nombre'])) {
             $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
