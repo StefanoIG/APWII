@@ -347,22 +347,9 @@ class UsuarioController extends Controller
         $paymentPreferences = json_decode($plan->payment_preferences, true);
         $setupFee = $paymentPreferences['setup_fee']['value'];
 
-        $factura = Factura::create([
+        // Crear la factura y el detalle de la factura
+        $factura = $this->crearFacturaYDetalle($usuario, $plan, 2, "Pago suscripción por transferencia bancaria");
 
-            'usuario_id' => $usuario->id,
-            'metodo_pago_id' => 2, // ID para transferencia bancaria
-            'total' => $setupFee,
-            'estado' => 'pendiente',
-        ]);
-
-        DetalleFactura::create([
-
-            'factura_id' => $factura->id,
-            'descripcion' => "Pago suscripción",
-            'cantidad' => 1,
-            'precio_unitario' => $setupFee,
-            'subtotal' => $setupFee,
-        ]);
 
         // Notificar a los administradores
 
@@ -378,6 +365,31 @@ class UsuarioController extends Controller
         Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
     }
 
+
+    protected function crearFacturaYDetalle($usuario, $plan, $metodoPagoId, $descripcion)
+    {
+        $paymentPreferences = json_decode($plan->payment_preferences, true);
+        $setupFee = $paymentPreferences['setup_fee']['value'];
+
+        // Crear la factura
+        $factura = Factura::create([
+            'usuario_id' => $usuario->id,
+            'metodo_pago_id' => $metodoPagoId,
+            'total' => $setupFee,
+            'estado' => 'pendiente',
+        ]);
+
+        // Crear el detalle de la factura
+        DetalleFactura::create([
+            'factura_id' => $factura->id,
+            'descripcion' => $descripcion,
+            'cantidad' => 1,
+            'precio_unitario' => $setupFee,
+            'subtotal' => $setupFee,
+        ]);
+
+        return $factura;
+    }
 
 
 
@@ -638,7 +650,7 @@ class UsuarioController extends Controller
     }
 
 
-    //Funcion para procesar pago
+    //Funcion para procesar pago por 
     public function processPayment($planId, $usuario)
     {
         $plan = Planes::find($planId);
@@ -681,25 +693,9 @@ class UsuarioController extends Controller
                 $paymentPreferences = json_decode($plan->payment_preferences, true); // Asegúrate de que payment_preferences esté en formato JSON en la base de datos
                 $setupFee = $paymentPreferences['setup_fee']['value']; // Obtener el valor de setup_fee
 
-                // Crear la factura antes de redirigir a PayPal
-                $factura = Factura::create([
-                    'usuario_id' => $usuario->id,  // Cambiado a usuario_id
-                    'metodo_pago_id' => 1, // Cambiar si se necesita ajustar el ID correspondiente a PayPal
-                    'order_id_paypal' => $orderIdPayPal,
-                    'total' => $setupFee, // Usar setup_fee['value'] como el total del plan
-                    'estado' => 'pendiente',
-                ]);
+                // Crear la factura y el detalle de la factura
+                $factura = $this->crearFacturaYDetalle($usuario, $plan, 1, "Pago suscripción por PayPal");
 
-
-
-                // Crear el detalle de la factura
-                DetalleFactura::create([
-                    'factura_id' => $factura->id,
-                    'descripcion' => "Pago suscripcion", // Descripción del plan
-                    'cantidad' => 1, // En este caso solo 1 suscripción
-                    'precio_unitario' => $setupFee, // Usar el setup_fee
-                    'subtotal' => $setupFee, // Total = cantidad * precio_unitario
-                ]);
 
                 // Redirigir al usuario para aprobar el pago
                 foreach ($response['links'] as $link) {
@@ -718,9 +714,20 @@ class UsuarioController extends Controller
         }
     }
 
+    //funcion para calcular las fechas de pago
+    private function calcularFechasPago($factura)
+    {
+        // Calcular fechas de pago y días de gracia
+        $fechasPago = $this->calcularFechasPago(now(), 30, 7);  // Ejemplo: 30 días de ciclo y 7 días de gracia
 
+        // Guardar las fechas calculadas en la base de datos si es necesario
+        $factura->update([
+            'proxima_fecha_pago' => $fechasPago['proxima_fecha_pago'],
+            'fecha_gracia' => $fechasPago['fecha_gracia']
+        ]);
+    }
 
-    //funcion si el pago fue exitoso
+    //funcion si el pago por paypal fue exitoso
     public function paymentSuccess(Request $request)
     {
         $userId = $request->input('user_id');
@@ -1243,7 +1250,7 @@ class UsuarioController extends Controller
 
         return response()->json($usuarios);
     }
-    
+
     //Funcion para paginar (Database main)
     public function paginatedIndexAdmin(Request $request)
     {
