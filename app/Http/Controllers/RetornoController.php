@@ -7,12 +7,101 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Retorno;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
+
+use Illuminate\Support\Facades\Auth;
 
 class RetornoController extends Controller
 {
-    // Obtener todos los retornos
-    public function index()
+
+    /**
+     * Verifica si el usuario autenticado tiene un permiso específico.*/
+    private function verificarPermiso($permisoNombre)
     {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarPermiso: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un rol específico.
+     *
+     * @param string $rolNombre
+     * @return bool
+     */
+    private function verificarRol($rolNombre)
+    {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->nombre === $rolNombre) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarRol: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
+     */
+    protected function setTenantConnection($databaseName)
+    {
+        // Configurar la conexión a la base de datos del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        // Purga la conexión anterior y reconecta con el tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Establecer el nombre de la conexión de forma predeterminada
+        DB::setDefaultConnection('tenant');
+    }
+    
+    // Obtener todos los retornos
+    public function index(Request $request)
+    {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         if (!$this->verificarPermiso('Puede ver retornos')) {
             return response()->json(['error' => 'No tienes permiso para eliminar sitios'], 403);
         }
@@ -29,6 +118,24 @@ class RetornoController extends Controller
     // Crear un nuevo retorno
     public function store(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         try {
             $validatedData = $request->validate([
                 'id_comprobante' => 'required|exists:comprobante,id_comprobante',
@@ -52,27 +159,57 @@ class RetornoController extends Controller
     }
 
     // Mostrar un retorno específico
-    public function show(string $id)
+    public function show(string $id, Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+        // Obtener el retorno
         $retorno = Retorno::find($id);
 
-        if(!$retorno) {
+        if (!$retorno) {
             return response()->json(['error' => 'Retorno no encontrado'], 404);
         }
 
         return response()->json($retorno);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
 
+    //Paginacion del index
     public function paginatedIndex(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         // Validar la solicitud
         $validator = Validator::make($request->all(), [
             'id_comprobante' => 'sometimes|exists:comprobante,id_comprobante',

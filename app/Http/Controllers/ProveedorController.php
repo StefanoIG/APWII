@@ -8,12 +8,33 @@ use App\Models\Proveedor;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use App\Models\login;
+use Illuminate\Support\Facades\DB;
 
 class ProveedorController extends Controller
 {
+    /**
+     * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
+     */
+    protected function setTenantConnection($databaseName)
+    {
+        // Configurar la conexión a la base de datos del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
 
-        private function verificarPermiso($permisoNombre)
+        // Purga la conexión anterior y reconecta con el tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Establecer el nombre de la conexión de forma predeterminada
+        DB::setDefaultConnection('tenant');
+    }
+
+
+    private function verificarPermiso($permisoNombre)
     {
         $user = Auth::guard('api')->user();
         if (!$user) {
@@ -50,7 +71,7 @@ class ProveedorController extends Controller
             Log::error('Usuario no autenticado en verificarRol. Token: ' . request()->header('Authorization'));
             return false;
         }
-        
+
         Log::info('Usuario autenticado en verificarRol: ' . $user->id);
 
         $roles = $user->roles;
@@ -65,42 +86,53 @@ class ProveedorController extends Controller
         return false;
     }
 
-   /**
+    /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
+        // Verificación de roles y permisos
         $user = Auth::guard('api')->user();
         if (!$user) {
             Log::error('Usuario no autenticado en index. Token: ' . request()->header('Authorization'));
             return response()->json(['error' => 'No estás autenticado'], 403);
         }
-    
+
         Log::info('Usuario autenticado en index: ' . $user->id);
-    
-        // Si el usuario es un empleado, filtrar los proveedores relacionados con su sitio_id
+
         if ($this->verificarRol('Empleado')) {
             $proveedores = Proveedor::where('sitio_id', $user->sitio_id)->get();
-            Log::info('Proveedores filtrados por sitio_id para el usuario: ' . $user->id);
             return response()->json($proveedores);
         }
-    
-        // Si el usuario es owner, filtrar los proveedores creados por el usuario
+
         if ($this->verificarRol('Owner')) {
             $proveedores = Proveedor::where('created_by', $user->id)->get();
-            Log::info('Proveedores filtrados por created_by para el usuario: ' . $user->id);
             return response()->json($proveedores);
         }
-    
-        // Si el usuario es admin, puede ver todos los proveedores
+
         if ($this->verificarRol('Admin')) {
             $proveedores = Proveedor::all();
-            Log::info('Todos los proveedores mostrados para el usuario admin: ' . $user->id);
             return response()->json($proveedores);
         }
-    
-        // Si no tiene ningún rol relevante, devolver un error
-        Log::warning('Usuario sin permisos relevantes en index: ' . $user->id);
+
         return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
     }
 
@@ -109,6 +141,24 @@ class ProveedorController extends Controller
      */
     public function store(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
+        // Verificación de permisos
         if (!$this->verificarPermiso('Puede crear proveedores')) {
             return response()->json(['error' => 'No tienes permiso para crear proveedores'], 403);
         }
@@ -121,54 +171,80 @@ class ProveedorController extends Controller
             'telefono' => 'required|string|max:255',
             'Cuidad' => 'required|string|max:255',
             'Activo' => 'required|boolean',
-            'isActive' => 'required|boolean',
         ]);
 
-        // Si la validación falla
         if ($validator->fails()) {
-            Log::error('Validación fallida en store: ' . json_encode($validator->errors()));
             return response()->json($validator->errors(), 400);
         }
 
         // Crear el proveedor
         $proveedor = Proveedor::create($request->all());
-        Log::info('Proveedor creado correctamente: ' . $proveedor->id);
         return response()->json(['message' => 'Proveedor creado correctamente', $proveedor], 200);
     }
 
-/**
- * Display the specified resource.
- */
-public function show(string $id)
-{
-    $user = Auth::user();
-    $proveedor = Proveedor::find($id);
+    /**
+     * Display the specified resource.
+     */
+    public function show(Request $request, string $id)
+    {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
 
-    if (!$proveedor) {
-        Log::error('Proveedor no encontrado en show: ' . $id);
-        return response()->json(['error' => 'Proveedor no encontrado'], 404);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
+        // Obtener el proveedor y verificar permisos
+        $proveedor = Proveedor::find($id);
+        if (!$proveedor) {
+            return response()->json(['error' => 'Proveedor no encontrado'], 404);
+        }
+
+        $user = Auth::user();
+        if ($this->verificarRol('Empleado') && $proveedor->sitio_id !== $user->sitio_id) {
+            return response()->json(['error' => 'No tienes permiso para ver este proveedor'], 403);
+        }
+
+        if ($this->verificarRol('Owner') && $proveedor->created_by !== $user->id) {
+            return response()->json(['error' => 'No tienes permiso para ver este proveedor'], 403);
+        }
+
+        return response()->json($proveedor);
     }
-
-    // Verificar permisos de visualización
-    if ($this->verificarRol('Empleado') && $proveedor->sitio_id !== $user->sitio_id) {
-        Log::warning('Permiso denegado en show para el usuario: ' . $user->id);
-        return response()->json(['error' => 'No tienes permiso para ver este proveedor'], 403);
-    }
-
-    if ($this->verificarRol('Owner') && $proveedor->created_by !== $user->id) {
-        Log::warning('Permiso denegado en show para el usuario: ' . $user->id);
-        return response()->json(['error' => 'No tienes permiso para ver este proveedor'], 403);
-    }
-
-    Log::info('Proveedor mostrado correctamente: ' . $proveedor->id);
-    return response()->json($proveedor);
-}
 
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, string $id)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         $proveedor = Proveedor::find($id);
 
         if (!$proveedor) {
@@ -207,8 +283,26 @@ public function show(string $id)
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         $proveedor = Proveedor::find($id);
 
         if (!$proveedor) {
@@ -232,6 +326,23 @@ public function show(string $id)
      */
     public function paginatedIndex(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
         $user = Auth::user();
 
         // Validar la solicitud
@@ -309,5 +420,4 @@ public function show(string $id)
         Log::info('Proveedores paginados obtenidos correctamente para el usuario: ' . $user->id);
         return response()->json($proveedores);
     }
-
 }

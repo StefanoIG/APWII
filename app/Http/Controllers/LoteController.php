@@ -8,16 +8,103 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Etiqueta;
-use App\Models\Login;
+use App\Models\Etiqueta;;
+
 use Illuminate\Support\Facades\Auth;
 use App\Models\Producto;
 
 class LoteController extends Controller
 {
-    // Obtener todos los lotes
-    public function index()
+
+    /**
+     * Verifica si el usuario autenticado tiene un permiso específico.*/
+    private function verificarPermiso($permisoNombre)
     {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarPermiso: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verifica si el usuario autenticado tiene un rol específico.
+     *
+     * @param string $rolNombre
+     * @return bool
+     */
+    private function verificarRol($rolNombre)
+    {
+        try {
+            $user = Auth::user();
+            $roles = $user->roles;
+
+            foreach ($roles as $rol) {
+                if ($rol->nombre === $rolNombre) {
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Error en verificarRol: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
+     */
+    protected function setTenantConnection($databaseName)
+    {
+        // Configurar la conexión a la base de datos del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        // Purga la conexión anterior y reconecta con el tenant
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        // Establecer el nombre de la conexión de forma predeterminada
+        DB::setDefaultConnection('tenant');
+    }
+
+
+    // Obtener todos los lotes
+    public function index(Request $request)
+    {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         try {
             // Verificar permiso
             if (!$this->verificarPermiso('Puede ver lotes')) {
@@ -34,8 +121,25 @@ class LoteController extends Controller
     }
 
     // Obtener un lote específico por ID
-    public function show($id)
+    public function show($id, Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
         try {
             $lote = Lote::find($id);
 
@@ -51,105 +155,123 @@ class LoteController extends Controller
     }
 
     // Crear un nuevo lote
-public function store(Request $request)
-{
-    try {
-        // Verificar permiso
-        if (!$this->verificarPermiso('Puede crear lotes')) {
-            return response()->json(['error' => 'No tienes permiso para crear lotes'], 403);
-        }
-
-        // Validar la solicitud con una regla personalizada
+    public function store(Request $request)
+    {
+        // Validar el nombre de la base de datos del tenant
         $validator = Validator::make($request->all(), [
-            'id_producto' => 'required|exists:producto,id_producto',
-            'id_proveedor' => 'required|exists:proveedor,id_proveedor',
-            'fecha_fabricacion' => 'nullable|date',
-            'fecha_caducidad' => 'nullable|date',
-            'cantidad' => 'required|integer',
-            'expirable' => 'required|boolean',
-            'isActive' => 'required|boolean',
-            'id_sitio' => 'required|exists:sitio,id_sitio'
+            'tenant_database' => 'required|string',
         ]);
 
-        // Agregar una regla personalizada para validar fecha_caducidad
-        $validator->sometimes('fecha_caducidad', 'required|date', function ($input) {
-            return $input->expirable == true;
-        });
-        
-        // Verificar si la validación falla
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Uso de transacciones para asegurar consistencia
-        DB::beginTransaction();
-        try {
-            // Crear un nuevo lote y asignar manualmente las claves foráneas
-            $validatedData = $validator->validated();
-            $lote = new Lote();
-            $lote->id_producto = $validatedData['id_producto'];
-            $lote->id_proveedor = $validatedData['id_proveedor'];
-            $lote->fecha_fabricacion = $validatedData['fecha_fabricacion'] ?? null;
-            $lote->cantidad = $validatedData['cantidad'];
-            $lote->expirable = $validatedData['expirable'];
-            $lote->isActive = $validatedData['isActive'];
-            $lote->id_sitio = $validatedData['id_sitio'];
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
 
-            // Asignar fecha_caducidad solo si expirable es true
-            if ($validatedData['expirable']) {
-                $lote->fecha_caducidad = $validatedData['fecha_caducidad'];
-            }
-
-            // Generar código de barras aleatorio de longitud fija
-            $codigoBarra = $this->generarCodigoDeBarras();
-            $lote->codigo_lote = $codigoBarra;
-
-            // Guardar el lote
-            $lote->save();
-
-            // Si el lote es expirable, crear o encontrar la etiqueta "expirable" y asignarla al producto
-            if ($validatedData['expirable']) {
-                // Buscar o crear la etiqueta "expirable"
-                $etiqueta = Etiqueta::firstOrCreate(
-                    ['nombre' => 'expirable'],  // Condición de búsqueda
-                    [
-                        'color_hex' => '#FF0000',
-                        'descripcion' => 'Producto expirable',
-                        'categoria' => 'Advertencia',
-                        'prioridad' => 'alta',
-                    ]
-                );
-
-                // Depurar para ver si la etiqueta se creó correctamente
-                Log::info('Etiqueta creada:', $etiqueta->toArray());
-
-                // Asignar la etiqueta al lote
-                $lote->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
-
-                // Obtener el producto
-                $producto = Producto::find($validatedData['id_producto']);
-
-                if ($producto) {
-                    // Asignar la etiqueta al producto sin eliminar las etiquetas anteriores
-                    $producto->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
-                } else {
-                    // Manejo de error: Producto no encontrado
-                    Log::error("Producto no encontrado con ID: " . $validatedData['id_producto']);
-                }
-            }
-
-            DB::commit();
-            return response()->json($lote, 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error al crear lote: ' . $e->getMessage());
-            return response()->json(['error' => 'Error al crear el lote'], 500);
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
         }
-    } catch (\Exception $e) {
-        Log::error('Error en store: ' . $e->getMessage());
-        return response()->json(['error' => 'Error al procesar la solicitud'], 500);
+
+        try {
+            // Verificar permiso
+            if (!$this->verificarPermiso('Puede crear lotes')) {
+                return response()->json(['error' => 'No tienes permiso para crear lotes'], 403);
+            }
+
+            // Validar la solicitud con una regla personalizada
+            $validator = Validator::make($request->all(), [
+                'id_producto' => 'required|exists:producto,id_producto',
+                'id_proveedor' => 'required|exists:proveedor,id_proveedor',
+                'fecha_fabricacion' => 'nullable|date',
+                'fecha_caducidad' => 'nullable|date',
+                'cantidad' => 'required|integer',
+                'expirable' => 'required|boolean',
+                'isActive' => 'required|boolean',
+                'id_sitio' => 'required|exists:sitio,id_sitio'
+            ]);
+
+            // Agregar una regla personalizada para validar fecha_caducidad
+            $validator->sometimes('fecha_caducidad', 'required|date', function ($input) {
+                return $input->expirable == true;
+            });
+
+            // Verificar si la validación falla
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            // Uso de transacciones para asegurar consistencia
+            DB::beginTransaction();
+            try {
+                // Crear un nuevo lote y asignar manualmente las claves foráneas
+                $validatedData = $validator->validated();
+                $lote = new Lote();
+                $lote->id_producto = $validatedData['id_producto'];
+                $lote->id_proveedor = $validatedData['id_proveedor'];
+                $lote->fecha_fabricacion = $validatedData['fecha_fabricacion'] ?? null;
+                $lote->cantidad = $validatedData['cantidad'];
+                $lote->expirable = $validatedData['expirable'];
+                $lote->isActive = $validatedData['isActive'];
+                $lote->id_sitio = $validatedData['id_sitio'];
+
+                // Asignar fecha_caducidad solo si expirable es true
+                if ($validatedData['expirable']) {
+                    $lote->fecha_caducidad = $validatedData['fecha_caducidad'];
+                }
+
+                // Generar código de barras aleatorio de longitud fija
+                $codigoBarra = $this->generarCodigoDeBarras();
+                $lote->codigo_lote = $codigoBarra;
+
+                // Guardar el lote
+                $lote->save();
+
+                // Si el lote es expirable, crear o encontrar la etiqueta "expirable" y asignarla al producto
+                if ($validatedData['expirable']) {
+                    // Buscar o crear la etiqueta "expirable"
+                    $etiqueta = Etiqueta::firstOrCreate(
+                        ['nombre' => 'expirable'],  // Condición de búsqueda
+                        [
+                            'color_hex' => '#FF0000',
+                            'descripcion' => 'Producto expirable',
+                            'categoria' => 'Advertencia',
+                            'prioridad' => 'alta',
+                        ]
+                    );
+
+                    // Depurar para ver si la etiqueta se creó correctamente
+                    Log::info('Etiqueta creada:', $etiqueta->toArray());
+
+                    // Asignar la etiqueta al lote
+                    $lote->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
+
+                    // Obtener el producto
+                    $producto = Producto::find($validatedData['id_producto']);
+
+                    if ($producto) {
+                        // Asignar la etiqueta al producto sin eliminar las etiquetas anteriores
+                        $producto->etiquetas()->syncWithoutDetaching([$etiqueta->id_etiqueta]);
+                    } else {
+                        // Manejo de error: Producto no encontrado
+                        Log::error("Producto no encontrado con ID: " . $validatedData['id_producto']);
+                    }
+                }
+
+                DB::commit();
+                return response()->json($lote, 201);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Error al crear lote: ' . $e->getMessage());
+                return response()->json(['error' => 'Error al crear el lote'], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error en store: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al procesar la solicitud'], 500);
+        }
     }
-}
 
     // Generar un código de barras de longitud fija
     private function generarCodigoDeBarras()
@@ -159,8 +281,25 @@ public function store(Request $request)
     }
 
     // Generar y mostrar la imagen del código de barras
-    public function verCodigoDeBarras($id_lote)
+    public function verCodigoDeBarras($id_lote, Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
         try {
             // Buscar el lote por id_lote
             $lote = Lote::findOrFail($id_lote);
@@ -184,6 +323,23 @@ public function store(Request $request)
 
     public function showByCodigoLote(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
         try {
             // Validar que el código de lote fue enviado en la solicitud
             $validator = Validator::make($request->all(), [
@@ -214,6 +370,24 @@ public function store(Request $request)
     // Actualizar un lote existente
     public function update(Request $request, $id)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         try {
             // Verificar permiso
             if (!$this->verificarPermiso('Puede actualizar lotes')) {
@@ -273,8 +447,26 @@ public function store(Request $request)
     }
 
     // Eliminar un lote existente
-    public function destroy($id)
+    public function destroy($id, Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+
         try {
             // Verificar permiso
             if (!$this->verificarPermiso('Puede eliminar lotes')) {
@@ -301,6 +493,24 @@ public function store(Request $request)
     // Paginación de lotes
     public function paginatedIndex(Request $request)
     {
+        // Validar el nombre de la base de datos del tenant
+        $validator = Validator::make($request->all(), [
+            'tenant_database' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Establecer la conexión al tenant
+        $tenantDatabase = $request->tenant_database;
+        $this->setTenantConnection($tenantDatabase);
+
+        // Verificar que la conexión se haya establecido
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        }
+        
         try {
             // Validar la solicitud
             $validator = Validator::make($request->all(), [
@@ -392,52 +602,6 @@ public function store(Request $request)
             }
         } catch (\Exception $e) {
             Log::error('Error en verificarLotesExpirados: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Verifica si el usuario autenticado tiene un permiso específico.*/
-    private function verificarPermiso($permisoNombre)
-    {
-        try {
-            $user = Auth::user();
-            $roles = $user->roles;
-
-            foreach ($roles as $rol) {
-                if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
-                    return true;
-                }
-            }
-
-            return false;
-        } catch (\Exception $e) {
-            Log::error('Error en verificarPermiso: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Verifica si el usuario autenticado tiene un rol específico.
-     *
-     * @param string $rolNombre
-     * @return bool
-     */
-    private function verificarRol($rolNombre)
-    {
-        try {
-            $user = Auth::user();
-            $roles = $user->roles;
-
-            foreach ($roles as $rol) {
-                if ($rol->nombre === $rolNombre) {
-                    return true;
-                }
-            }
-
-            return false;
-        } catch (\Exception $e) {
-            Log::error('Error en verificarRol: ' . $e->getMessage());
-            return false;
         }
     }
 }
