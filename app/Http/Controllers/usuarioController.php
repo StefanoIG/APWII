@@ -34,8 +34,6 @@ use App\Models\Tenant;
 use App\Models\Sitio;
 
 use Illuminate\Support\Facades\File;
-
-
 use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
 
 class UsuarioController extends Controller
@@ -306,8 +304,7 @@ class UsuarioController extends Controller
     //Funcion encargada del registro de owner
     protected function handleOwnerRegistration($request, $usuario)
     {
-        // Lógica específica para el rol "Owner"
-        $this->createTenantForOwner($usuario);
+
 
         if ($request->metodo_pago == 1) {
 
@@ -363,6 +360,8 @@ class UsuarioController extends Controller
 
         // Enviar mensaje al usuario indicando que el pago será confirmado
         Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
+        // Lógica específica para el rol "Owner"
+        $this->createTenantForOwner($usuario);
     }
 
 
@@ -380,13 +379,17 @@ class UsuarioController extends Controller
         ]);
 
         // Crear el detalle de la factura
-        DetalleFactura::create([
+        $detalleFactura = DetalleFactura::create([
             'factura_id' => $factura->id,
             'descripcion' => $descripcion,
             'cantidad' => 1,
             'precio_unitario' => $setupFee,
             'subtotal' => $setupFee,
+            'dia_facturacion' => Carbon::now()->day,  // Almacenar el día actual como entero
         ]);
+
+        // Calcular las fechas de pago mediante la función
+        $this->calcularFechasPago($factura);
 
         return $factura;
     }
@@ -717,14 +720,40 @@ class UsuarioController extends Controller
     //funcion para calcular las fechas de pago
     private function calcularFechasPago($factura)
     {
-        // Calcular fechas de pago y días de gracia
-        $fechasPago = $this->calcularFechasPago(now(), 30, 7);  // Ejemplo: 30 días de ciclo y 7 días de gracia
+        // Iniciar una transacción
+        DB::beginTransaction();
+        try {
+            // Definir el ciclo de facturación y los días de gracia
+            $cicloFacturacionDias = 30; // Ejemplo: 30 días de ciclo
+            $diasGracia = 7; // Ejemplo: 7 días de gracia
 
-        // Guardar las fechas calculadas en la base de datos si es necesario
-        $factura->update([
-            'proxima_fecha_pago' => $fechasPago['proxima_fecha_pago'],
-            'fecha_gracia' => $fechasPago['fecha_gracia']
-        ]);
+            // Calcular la próxima fecha de pago y la fecha de gracia
+            $proximaFechaPago = Carbon::now()->addDays($cicloFacturacionDias);
+            $fechaGracia = $proximaFechaPago->copy()->addDays($diasGracia);
+
+            
+            // Guardar las fechas calculadas en la base de datos
+            $factura->update([
+                'proxima_fecha_pago' => $proximaFechaPago,
+                'fecha_gracia' => $fechaGracia
+            ]);
+
+            // Confirmar la transacción
+            DB::commit();
+            Log::info('Fechas de pago calculadas y guardadas correctamente', [
+                'factura_id' => $factura->id,
+                'proxima_fecha_pago' => $proximaFechaPago,
+                'fecha_gracia' => $fechaGracia
+            ]);
+        } catch (\Exception $e) {
+            // Revertir la transacción en caso de error
+            DB::rollBack();
+            Log::error('Error al calcular y guardar las fechas de pago', [
+                'factura_id' => $factura->id,
+                'error' => $e->getMessage()
+            ]);
+            throw $e; // Re-lanzar la excepción para manejarla en el contexto superior si es necesario
+        }
     }
 
     //funcion si el pago por paypal fue exitoso

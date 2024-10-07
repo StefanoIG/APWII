@@ -17,6 +17,8 @@ class Factura extends Model
         'total',
         'fecha_pago',
         'estado',
+        'proxima_fecha_pago',
+        'fecha_gracia',
     ];
 
     // Relación con los detalles de la factura
