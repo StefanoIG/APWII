@@ -387,6 +387,7 @@ class UsuarioController extends Controller
             'subtotal' => $setupFee,
             'dia_facturacion' => Carbon::now()->day,  // Almacenar el día actual como entero
         ]);
+       
 
         // Calcular las fechas de pago mediante la función
         $this->calcularFechasPago($factura);
@@ -519,10 +520,6 @@ class UsuarioController extends Controller
             return response()->json(['error' => 'Error en la creación del tenant'], 500);
         }
     }
-
-
-
-
 
 
     public function confirmarPago($id)
