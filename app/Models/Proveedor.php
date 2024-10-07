@@ -8,26 +8,30 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Proveedor extends Model
 {
-
     use SoftDeletes;
+
     protected $dates = ['deleted_at'];
-    
     protected $table = 'proveedor';
+    protected $primaryKey = 'id_proveedor'; // Especificar la clave primaria
 
-    use HasFactory;
-
-    protected $fillable= [
+    protected $fillable = [
         "nombre",
         "direccion",
         "email",
         "telefono",
         "Cuidad",
         "Activo",
-        "isActive"
+        "isActive",
+        "sitio_id"
     ];
 
     protected $casts = [
         'isActive' => 'boolean',
     ];
-    
+
+    // Relación de 1 a n con sitios
+    public function sitio()
+    {
+        return $this->belongsTo(Sitio::class, 'sitio_id');
+    }
 }

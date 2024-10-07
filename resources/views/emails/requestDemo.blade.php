@@ -6,37 +6,42 @@
     <title>Nueva Solicitud de Demo</title>
     <style>
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
             background-color: #f4f4f4;
             color: #333;
-            margin: 0;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             padding: 0;
+            margin: 0;
         }
         .container {
-            max-width: 600px;
-            margin: 50px auto;
-            background: #ffffff;
+            background-color: #333;
+            color: white;
             padding: 30px;
             border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2), 0 6px 20px rgba(0, 0, 0, 0.19);
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
         }
         .header {
-            text-align: center;
-            margin-bottom: 30px;
+            background-color: #007bff;
+            color: white;
+            padding: 15px;
+            border-radius: 10px 10px 0 0;
         }
         .header img {
             max-width: 100px;
             margin-bottom: 20px;
         }
-        h1 {
-            color: #007bff;
+        .header h1 {
+            margin: 0;
             font-size: 24px;
-            margin-bottom: 20px;
         }
-        p {
-            line-height: 1.8;
-            font-size: 16px;
-            margin-bottom: 20px;
+        .content {
+            padding: 20px 0;
         }
         .button-container {
             text-align: center;
@@ -44,7 +49,7 @@
         }
         .button {
             background-color: #007bff;
-            color: #ffffff;
+            color: white;
             padding: 15px 25px;
             border-radius: 5px;
             text-decoration: none;
@@ -55,10 +60,9 @@
             background-color: #0056b3;
         }
         .footer {
-            margin-top: 30px;
-            text-align: center;
-            font-size: 14px;
-            color: #999999;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #bbb;
         }
         .footer a {
             color: #007bff;
@@ -73,16 +77,18 @@
     <div class="container">
         <div class="header">
             <img src="logo.png" alt="Logo">
+            <h1>Nueva Solicitud de Demo</h1>
         </div>
-        <h1>Nueva Solicitud de Demo</h1>
-        <p>Estimado/a Administrador/a,</p>
-        <p>Se ha recibido una nueva solicitud de demo en el sistema. A continuación, se encuentran los detalles:</p>
-        <p><strong>Correo:</strong> {{ $demoRequest->email }}</p>
-        <p>Por favor, revise la solicitud y tome las acciones necesarias.</p>
-        <div class="button-container">
-            <a href="#" class="button">Iniciar Sesión</a>
+        <div class="content">
+            <p>Estimado/a Administrador/a,</p>
+            <p>Se ha recibido una nueva solicitud de demo en el sistema. A continuación, se encuentran los detalles:</p>
+            <p><strong>Correo:</strong> {{ $demoRequest->email }}</p>
+            <p>Por favor, revise la solicitud y tome las acciones necesarias.</p>
+            <div class="button-container">
+                <a href="#" class="button">Iniciar Sesión</a>
+            </div>
+            <p>Gracias.</p>
         </div>
-        <p>Gracias.</p>
         <div class="footer">
             <p>&copy; {{ date('Y') }} InventoryPro. Todos los derechos reservados.</p>
         </div>

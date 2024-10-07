@@ -22,6 +22,9 @@ return new class extends Migration
             $table->boolean('isActive')->default(true);
             $table->softDeletes(); // Agregar columna para soft deletes
             $table->timestamps();
+
+            // Relación con la tabla de sitios
+            $table->unsignedBigInteger('sitio_id')->nullable();
         });
     }
 
