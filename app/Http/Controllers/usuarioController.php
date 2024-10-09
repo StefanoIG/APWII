@@ -304,8 +304,6 @@ class UsuarioController extends Controller
     //Funcion encargada del registro de owner
     protected function handleOwnerRegistration($request, $usuario)
     {
-
-
         if ($request->metodo_pago == 1) {
 
             $this->processPaypalPayment($request, $usuario);
@@ -501,7 +499,7 @@ class UsuarioController extends Controller
             Log::info('Usuario insertado en la base de datos del tenant, ID: ' . $usuarioTenant);
 
             // Obtener el rol 'Admin' del tenant
-            $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Admin')->first();
+            $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Owner')->first();
 
             if ($adminRol) {
                 // Asignar el rol de 'Admin' al usuario en la base de datos del tenant
@@ -511,9 +509,9 @@ class UsuarioController extends Controller
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-                Log::info('Rol "Admin" asignado al usuario en el tenant.');
+                Log::info('Rol "Owner" asignado al usuario en el tenant.');
             } else {
-                Log::warning('Rol "Admin" no encontrado en el tenant.');
+                Log::warning('Rol "Owner" no encontrado en el tenant.');
             }
         } catch (\Exception $e) {
             Log::error('Error en la creación del tenant: ' . $e->getMessage());

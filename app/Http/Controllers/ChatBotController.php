@@ -66,10 +66,7 @@ class ChatBotController extends Controller
      */
     public function chat(Request $request)
     {
-        if (!$this->verificarPermiso('Puede crear preguntas chatbot')) {
-            return response()->json(['error' => 'No tienes permiso para consultar preguntas chatbot'], 403);
-        }
-
+        
         $request->validate([
             'question' => 'required|string|max:255'
         ]);
@@ -94,9 +91,6 @@ class ChatBotController extends Controller
      */
     public function getAllQuestions(Request $request)
     {
-        if (!$this->verificarPermiso('Puede ver preguntas chatbot')) {
-            return response()->json(['error' => 'No tienes permiso para ver preguntas chatbot'], 403);
-        }
 
         // Obtener todas las preguntas y respuestas con paginación (10 por página)
         $questions = Questions::paginate(10);
