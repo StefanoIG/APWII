@@ -352,12 +352,13 @@ class UsuarioController extends Controller
             $query->where('nombre', 'Admin');
         })->get();
 
-        foreach ($admins as $admin) {
-            Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
-        }
+        // foreach ($admins as $admin) {
+        //     Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
+        // }
 
         // Enviar mensaje al usuario indicando que el pago será confirmado
-        Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
+        // Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
+
         // Lógica específica para el rol "Owner"
         $this->createTenantForOwner($usuario);
     }
