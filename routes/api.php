@@ -21,6 +21,10 @@ use App\Http\Controllers\UsuarioRolController;
 use App\Http\Controllers\RolPermisoController;
 
 
+Route::middleware('TenantAuthPermissions')->get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
+
+
+
 
 Route::post('/planes', [PlanController::class, 'store']);
 Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
@@ -103,7 +107,6 @@ Route::middleware('auth:api')->group(function () {
 
 
     //rutas de usuarios 
-    Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
     Route::put('/usuarios/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar usuario
 
 
