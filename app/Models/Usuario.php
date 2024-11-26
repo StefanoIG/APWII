@@ -23,7 +23,7 @@ class Usuario extends Authenticatable implements JWTSubject
         'cedula',
         'correo_electronico',
         'password',
-        
+
     ];
 
     /**
@@ -104,11 +104,16 @@ class Usuario extends Authenticatable implements JWTSubject
     {
         return $this->belongsTo(Rol::class, 'rol_id');
     }
-    
+
     public function tenants()
     {
         return $this->belongsToMany(Tenant::class, 'usuario_tenant', 'usuario_id', 'tenant_id')
             ->withPivot('rol_id')  // Para manejar roles específicos por tenant
             ->withTimestamps();
+    }
+    
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
 }

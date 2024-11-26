@@ -11,6 +11,16 @@ class Tenant extends BaseTenant implements TenantWithDatabase
 {
     use HasDatabase, HasDomains;
 
+    //proteger la tabla
+    protected $table = 'tenants';
+    
+    protected $fillable = [
+        'id',
+        'name',
+        'database_path',
+        'data',
+    ];
+
     // Relación muchos a muchos con usuarios
     public function usuarios()
     {

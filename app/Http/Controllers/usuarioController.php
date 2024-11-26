@@ -151,7 +151,7 @@ class UsuarioController extends Controller
 
 
     /**
-     * Crear un nuevo usuario.
+     * Crear un nuevo usuario de tipo owner
      */
 
     public function register(Request $request)
@@ -183,19 +183,16 @@ class UsuarioController extends Controller
             // Asignar el rol al usuario (a través de la tabla usuario_rol)
             $usuario->roles()->attach($request->rol_id);
 
-
-
             // Obtener el rol asociado al usuario
             $rol = Rol::find($request->rol_id);
-
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
                 $this->handleOwnerRegistration($request, $usuario);
-            } elseif ($rol->nombre === 'Empleado') {
-
-                $this->handleEmpleadoRegistration($request, $usuario);
             }
+            //elseif ($rol->nombre === 'Empleado') {
 
+            //     $this->handleEmpleadoRegistration($request, $usuario);
+            // }
             DB::commit();
 
             return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
@@ -206,7 +203,9 @@ class UsuarioController extends Controller
         }
     }
 
-
+    /**
+     * Crear un nuevo usuario de tipo Empleado
+     */
     public function registerForOwner(Request $request)
     {
         // Validar que se haya enviado el nombre de la base de datos
@@ -386,7 +385,7 @@ class UsuarioController extends Controller
             'subtotal' => $setupFee,
             'dia_facturacion' => Carbon::now()->day,  // Almacenar el día actual como entero
         ]);
-       
+
 
         // Calcular las fechas de pago mediante la función
         $this->calcularFechasPago($factura);
@@ -399,23 +398,13 @@ class UsuarioController extends Controller
     protected function createTenantForOwner($usuario)
     {
         try {
-            // Generar un código aleatorio alfanumérico para asegurar la unicidad
+            // Generar un código único para el tenant
             $codigoUnico = substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 6)), 0, 8);
 
-            // Crear un nuevo tenant
-            $tenant = Tenant::create([
-                'name' => $usuario->nombre . ' ' . $usuario->apellido,
-                'domain' => Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico) . '.inventorypro.com',
-            ]);
-
-            Log::info('Tenant creado: ' . $tenant->name);
-
-            // Asignar el usuario como owner del tenant en la base de datos principal
-            $tenant->usuarios()->attach($usuario->id, ['rol_id' => 3]);
-            Log::info('Usuario asignado como owner del tenant');
-
-            // Ruta donde se creará la base de datos SQLite
-            $databasePath = database_path('tenants/' . Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico) . '.sqlite');
+            // Crear el nombre y la ruta de la base de datos del tenant
+            $tenantName = $usuario->nombre . ' ' . $usuario->apellido;
+            $tenantSlug = Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico);
+            $databasePath = database_path('tenants/' . $tenantSlug . '.sqlite');
 
             // Asegurarse de que la carpeta 'tenants' existe
             if (!File::exists(database_path('tenants'))) {
@@ -429,7 +418,20 @@ class UsuarioController extends Controller
 
             Log::info('Base de datos SQLite creada en: ' . $databasePath);
 
-            // Cambiar dinámicamente la conexión de base de datos para este tenant
+            // Guardar el tenant en la base de datos principal (tabla `tenants`)
+            $tenant = Tenant::create([
+                'id' => $codigoUnico, // O un UUID generado dinámicamente
+                'name' => $tenantName,
+                'database_path' => $databasePath,
+            ]);
+
+            Log::info('Tenant creado: ' . $tenant->name);
+
+            // Asignar el usuario como Owner del tenant en la base de datos principal
+            $tenant->usuarios()->attach($usuario->id, ['rol_id' => 3]);
+            Log::info('Usuario asignado como Owner del tenant en la base principal.');
+
+            // Configurar la conexión dinámica para este tenant
             config(['database.connections.tenant' => [
                 'driver' => 'sqlite',
                 'database' => $databasePath,
@@ -437,18 +439,17 @@ class UsuarioController extends Controller
                 'foreign_key_constraints' => true,
             ]]);
 
-            // Establecer la conexión del tenant
+            // Cambiar la conexión al tenant
             DB::purge('tenant');
             DB::reconnect('tenant');
             Log::info('Conexión a la base de datos del tenant establecida.');
 
-            // Excluir las migraciones específicas y ejecutar el resto de las migraciones
+            // Excluir migraciones específicas y ejecutar las demás
             $excludedMigrations = [
-                '2019_09_15_000020_create_domains_table',
+               '2019_09_15_000020_create_domains_table',
                 '2019_09_15_000010_create_tenants_table',
                 '2024_09_15_031803_create_factura_table',
                 '2024_09_15_031639_create_metodo_pago_table',
-
                 '2024_09_12_220920_create__q_a_table',
                 '2019_09_15_000010_create_tenants_table',
                 '2024_09_23_014630_create_usuario_tenant_table',
@@ -456,16 +457,15 @@ class UsuarioController extends Controller
                 '2024_09_08_051844_create_demo_table',
                 '2024_09_15_031656_create_promociones_table',
                 '2024_09_15_062531_add_demo_expiry_date_to_demo_table',
-                // Añadir más migraciones si es necesario segun como se determine a posteriror
+                '2024_11_26_023950_add_columns_tenant',
+                '2024_09_23_014630_create_usuario_tenant_table',
+                '0001_01_01_000000_create_users_table'
+                // Añade otras migraciones que no deban ejecutarse en los tenants
             ];
 
             $migrations = collect(File::allFiles(database_path('migrations')))
-                ->map(function ($file) {
-                    return pathinfo($file, PATHINFO_FILENAME);
-                })
-                ->filter(function ($migration) use ($excludedMigrations) {
-                    return !in_array($migration, $excludedMigrations);
-                });
+                ->map(fn($file) => pathinfo($file, PATHINFO_FILENAME))
+                ->filter(fn($migration) => !in_array($migration, $excludedMigrations));
 
             foreach ($migrations as $migration) {
                 Artisan::call('migrate', [
@@ -492,18 +492,18 @@ class UsuarioController extends Controller
                 'telefono' => $usuario->telefono,
                 'cedula' => $usuario->cedula,
                 'correo_electronico' => $usuario->correo_electronico,
-                'password' => $usuario->password,  // Asume que ya está encriptada
+                'password' => $usuario->password, // Asume que ya está encriptada
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
             Log::info('Usuario insertado en la base de datos del tenant, ID: ' . $usuarioTenant);
 
-            // Obtener el rol 'Admin' del tenant
+            // Obtener el rol 'Owner' del tenant
             $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Owner')->first();
 
             if ($adminRol) {
-                // Asignar el rol de 'Admin' al usuario en la base de datos del tenant
+                // Asignar el rol de 'Owner' al usuario en la base de datos del tenant
                 DB::connection('tenant')->table('usuario_rol')->insert([
                     'usuario_id' => $usuarioTenant,
                     'rol_id' => $adminRol->id,
@@ -519,7 +519,6 @@ class UsuarioController extends Controller
             return response()->json(['error' => 'Error en la creación del tenant'], 500);
         }
     }
-
 
     public function confirmarPago($id)
     {
@@ -727,7 +726,7 @@ class UsuarioController extends Controller
             $proximaFechaPago = Carbon::now()->addDays($cicloFacturacionDias);
             $fechaGracia = $proximaFechaPago->copy()->addDays($diasGracia);
 
-            
+
             // Guardar las fechas calculadas en la base de datos
             $factura->update([
                 'proxima_fecha_pago' => $proximaFechaPago,
