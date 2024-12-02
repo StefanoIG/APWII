@@ -13,13 +13,27 @@ class Tenant extends BaseTenant implements TenantWithDatabase
 
     //proteger la tabla
     protected $table = 'tenants';
-    
+
     protected $fillable = [
         'id',
         'name',
-        'database_path',
         'data',
+        'database_path',
     ];
+
+    protected $casts = [
+        'data' => 'array', // Esto es del paquete Stancl Tenancy, pero puedes omitirlo.
+    ];
+
+    // // Sobrescribe el método setAttribute para ignorar "data"
+    // public function setAttribute($key, $value)
+    // {
+    //     if ($key === 'data') {
+    //         return $this;
+    //     }
+
+    //     return parent::setAttribute($key, $value);
+    // }
 
     // Relación muchos a muchos con usuarios
     public function usuarios()

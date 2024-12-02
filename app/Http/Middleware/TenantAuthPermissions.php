@@ -4,56 +4,90 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Auth;
-use Stancl\Tenancy\Facades\Tenancy;
+use Illuminate\Support\Facades\DB;
+use App\Models\Tenant;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash; // Asegúrate de tener el uso de Hash para verificar contraseñas
 
 class TenantAuthPermissions
 {
     public function handle(Request $request, Closure $next, $requiredPermissions = null)
     {
-        // Autenticación JWT
-        $token = $request->bearerToken();
-        if (!$token || !JWTAuth::setToken($token)->check()) {
-            return response()->json(['error' => 'No autorizado'], 401);
-        }
-
+        // Obtener el usuario autenticado
         $user = Auth::user();
 
-        // Verificar si el usuario es un administrador
-        $esAdmin = $user->roles->contains('nombre', 'Admin');
+        // Obtener el nombre del archivo SQLite desde el header o el parámetro de consulta
+        $tenantDatabase = $request->header('X-Tenant') ?? $request->query('tenant');
 
-        // Conectar al tenant solo si el usuario no es admin
-        if (!$esAdmin) {
-            // Obtener el tenant desde el header o el parámetro de consulta
-            $tenantId = $request->header('X-Tenant') ?? $request->query('tenant');
+        Log::info('Obteniendo el nombre del archivo SQLite', ['tenantDatabase' => $tenantDatabase]);
 
-            if ($tenantId) {
-                $tenant = \App\Models\Tenant::find($tenantId);
-
-                if ($tenant) {
-                    Tenancy::initialize($tenant);
-                } else {
-                    return response()->json(['error' => 'Tenant no encontrado'], 404);
-                }
-            } else {
-                return response()->json(['error' => 'Tenant no especificado'], 400);
-            }
+        if (!$tenantDatabase) {
+            Log::error('Tenant no especificado en la solicitud');
+            return response()->json(['error' => 'Tenant no especificado'], 400);
         }
 
-        // Verificación de permisos
+        // Verificar si el archivo SQLite existe en la carpeta "database/tenants/"
+        $tenantPath = database_path('tenants/' . $tenantDatabase);
+
+        if (!file_exists($tenantPath)) {
+            Log::error('Archivo SQLite del tenant no encontrado', ['tenantPath' => $tenantPath]);
+            return response()->json(['error' => 'Base de datos del tenant no encontrada '], 404);
+        }
+
+        // Verificar si el archivo SQLite existe y se puede conectar
+        $this->setTenantConnection($tenantPath);
+
+        // Verificar que la conexión al tenant está activa
+        if (!DB::connection('tenant')->getDatabaseName()) {
+            Log::error('No se pudo conectar a la base de datos del tenant', ['tenantPath' => $tenantPath]);
+            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant '], 500);
+        }
+
+        // Buscar al usuario en la tabla "usuarios" del tenant para verificar correo y contraseña
+        $tenantUser = DB::connection('tenant')->table('usuarios')
+            ->where('correo_electronico', $user->correo_electronico)
+            ->first();
+
+        if (!$tenantUser) {
+            Log::error('Usuario no encontrado en el tenant', ['correo_electronico' => $user->correo_electronico, 'tenantPath' => $tenantPath]);
+            return response()->json(['error' => 'Usuario no encontrado en el tenant'], 404);
+        }
+
+     
+        Log::info('Usuario autenticado correctamente en el tenant', ['correo_electronico' => $user->correo_electronico, 'tenantPath' => $tenantPath]);
+
+        // Verificación de permisos si se proporcionan
         if ($requiredPermissions) {
             $permissions = explode(',', $requiredPermissions);
-            $hasPermission = $user->roles->some(fn($rol) => 
+            $hasPermission = $user->roles->some(
+                fn($rol) =>
                 $rol->permisos()->whereIn('nombre', $permissions)->exists()
             );
 
             if (!$hasPermission) {
+                Log::error('Permiso insuficiente', ['user' => $user, 'permissions' => $permissions]);
                 return response()->json(['error' => 'Permiso insuficiente'], 403);
             }
         }
 
         return $next($request);
     }
-}
 
+    // Método para establecer la conexión al tenant
+    protected function setTenantConnection($tenantPath)
+    {
+        // Configurar la conexión con la base de datos SQLite del tenant
+        config(['database.connections.tenant' => [
+            'driver' => 'sqlite',
+            'database' => $tenantPath, // Usar el path completo para conectar
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+        ]]);
+
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        Log::info('Conexión al tenant establecida', ['tenantPath' => $tenantPath]);
+    }
+}

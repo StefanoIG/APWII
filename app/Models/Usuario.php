@@ -112,8 +112,8 @@ class Usuario extends Authenticatable implements JWTSubject
             ->withTimestamps();
     }
     
-    public function tenant()
-    {
-        return $this->belongsTo(Tenant::class, 'tenant_id');
-    }
+    // public function tenant()
+    // {
+    //     return $this->belongsTo(Tenant::class, 'tenant_id');
+    // }
 }

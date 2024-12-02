@@ -42,31 +42,28 @@ class LoginController extends Controller
                 return response()->json(['error' => 'Usuario no encontrado en ningún tenant'], 404);
             }
 
-            // Verificar y decodificar el campo `data`
-            if (empty($tenant->data)) {
-                Log::error('El campo `data` está vacío para el tenant: ' . $tenant->name);
+            // Verificar y acceder directamente al campo `database_path`
+            if (empty($tenant->database_path)) {
+                Log::error('El campo `database_path` está vacío para el tenant: ' . $tenant->name);
                 return response()->json(['error' => 'No se pudo encontrar la base de datos del tenant.'], 500);
             }
 
-            $tenantData = json_decode($tenant->data, true); // Decodificar JSON como array asociativo
+            // Normalizar el `database_path` para garantizar consistencia
+            $databasePath = str_replace(['\\', '//'], '/', $tenant->database_path);
+            $databasePath = basename($databasePath); // Extraer solo el nombre del archivo
 
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                Log::error('El campo `data` contiene un JSON inválido para el tenant: ' . $tenant->name);
-                return response()->json(['error' => 'No se pudo procesar la información del tenant.'], 500);
+            // Verificar si la ruta contiene un archivo válido
+            if (empty($databasePath)) {
+                Log::error("El campo `database_path` no contiene un nombre de archivo válido para el tenant: {$tenant->name}");
+                return response()->json(['error' => 'Error al procesar la información del tenant'], 500);
             }
 
-            if (!isset($tenantData['database_path'])) {
-                Log::error('El campo `database_path` no se encuentra en los datos del tenant: ' . $tenant->name);
-                return response()->json(['error' => 'No se pudo encontrar la base de datos del tenant.'], 500);
-            }
-
-            // Extraer el nombre del archivo .sqlite del campo `database_path`
-            $databasePath = basename($tenantData['database_path']);
+            Log::info("Base de datos del tenant encontrada: $databasePath");
 
             // Configurar la conexión del tenant usando el `database_path`
             config(['database.connections.tenant' => [
                 'driver' => 'sqlite',
-                'database' => $tenantData['database_path'], // Usar el path completo para conectar
+                'database' => $tenant->database_path, // Usar el path completo para conectar
                 'prefix' => '',
                 'foreign_key_constraints' => true,
             ]]);

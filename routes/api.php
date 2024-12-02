@@ -21,13 +21,29 @@ use App\Http\Controllers\UsuarioRolController;
 use App\Http\Controllers\RolPermisoController;
 
 
-Route::middleware('TenantAuthPermissions')->get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
+
+//Agrupar por middleware perzonalizado
+Route::middleware('TenantAuthPermissions')->group(function () {
+    Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
+    Route::get('/usuarios/{id}', [UsuarioController::class, 'show']);  // Ruta para mostrar un usuario específico
+    Route::delete('/usuarios/{id}', [UsuarioController::class, 'destroy']);  // Ruta para eliminar un usuario
+    Route::put('/usuario/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar un usuario
+
+    
+    //rutas de sitios
+    Route::post('/sitios', [SitioController::class, 'store']);
+    Route::get('/sitios', [SitioController::class, 'index']);
+    Route::get('/sitios/{id}', [SitioController::class, 'show']);
+    Route::put('/sitios/{id}', [SitioController::class, 'update']);
+    Route::delete('/sitios/{id}', [SitioController::class, 'destroy']);
+});
 
 
 
 
 Route::post('/planes', [PlanController::class, 'store']);
 Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
+Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
 
 Route::prefix('roles')->group(function () {
     Route::get('/', [RolController::class, 'index']);  // Obtener todos los roles
@@ -36,7 +52,6 @@ Route::prefix('roles')->group(function () {
     Route::put('{id}', [RolController::class, 'update']); // Actualizar un rol
     Route::delete('{id}', [RolController::class, 'destroy']); // Eliminar un rol
 });
-Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
 
 
 Route::prefix('permisos')->group(function () {
@@ -72,8 +87,7 @@ Route::get('/planes', [PlanController::class, 'index']);
 //rutas chatbot
 Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
 
-//por ahora dejarla aqui
-Route::post('/sitios', [SitioController::class, 'store']);
+
 
 //rutas de autenticación
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
@@ -136,13 +150,6 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/retornos', [RetornoController::class, 'store']);;
 
 
-    //rutas de sitios
-    Route::get('/sitios', [SitioController::class, 'index']);
-    Route::get('/sitios/{id}', [SitioController::class, 'show']);
-    Route::put('/sitios/{id}', [SitioController::class, 'update']);
-    Route::delete('/sitios/{id}', [SitioController::class, 'destroy']);
-
-
 
     //rutas barcodes
     Route::get('producto/{id}/barcode', [ProductoController::class, 'verCodigoDeBarras']);
@@ -152,8 +159,6 @@ Route::middleware('auth:api')->group(function () {
     //rutas de paginacion
     Route::get('/productos-pagination', [ProductoController::class, 'paginatedIndex']);
     Route::get('/lotes-pagination', [LoteController::class, 'paginatedIndex']);
-    Route::get('/sitios-pagination', [SitioController::class, 'paginatedIndex']);
-    Route::get('/usuarios-pagination', [UsuarioController::class, 'paginatedIndex']);
     Route::get('/etiquetas-pagination', [EtiquetaController::class, 'paginatedIndex']);
     Route::get('/comprobantes-pagination', [ComprobanteController::class, 'paginatedIndex']);
     Route::get('/retornos-pagination', [RetornoController::class, 'paginatedIndex']);
