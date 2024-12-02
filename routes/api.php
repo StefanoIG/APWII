@@ -19,11 +19,15 @@ use App\Http\Controllers\RolController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\UsuarioRolController;
 use App\Http\Controllers\RolPermisoController;
-
+use APP\Http\Controllers\ExportarController;
 
 
 //Agrupar por middleware perzonalizado
 Route::middleware('TenantAuthPermissions')->group(function () {
+
+    Route::get('exportar/excel', [ExportarController::class, 'exportarExcel']);
+    Route::get('exportar/sql', [ExportarController::class, 'exportarSQL']);
+
 
     //rutas de usuarios
     Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
