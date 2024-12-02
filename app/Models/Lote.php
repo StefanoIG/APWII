@@ -25,6 +25,7 @@ class Lote extends Model
         'fecha_caducidad',
         'cantidad',
         'expirable',
+        'codigo_barra',
         'isActive'
     ];
 

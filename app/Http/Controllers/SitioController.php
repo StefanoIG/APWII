@@ -141,8 +141,8 @@ class SitioController extends Controller
         //     return response()->json(['error' => 'No tienes permiso para ver este sitio'], 403);
         // }
 
-        $sitio = DB::connection('tenant')->table('sitio')->find($id);
-        dd($sitio);
+        $sitio = DB::connection('tenant')->table('sitio')->where('id_sitio', $id)->first();
+
         if (!$sitio) {
             return response()->json(['error' => 'Sitio no encontrado'], 404);
         }
@@ -159,7 +159,8 @@ class SitioController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nombre' => 'sometimes|required|string',
-            'ubicacion' => 'sometimes|required|string',
+            'direccion' => 'sometimes|required|string',
+            'ciudad' => 'sometimes|required|string',
         ]);
 
         if ($validator->fails()) {
@@ -171,7 +172,11 @@ class SitioController extends Controller
         // }
 
         try {
-            DB::connection('tenant')->table('sitio')->where('id', $id)->update($request->only(['nombre', 'ubicacion']));
+            DB::connection('tenant')
+            ->table('sitio')
+            ->where('id_sitio', $id)
+            ->update($request->only(['nombre', 'direccion', 'ciudad']));
+
             return response()->json(['message' => 'Sitio actualizado correctamente'], 200);
         } catch (\Exception $e) {
             Log::error('Error al actualizar sitio: ' . $e->getMessage());
@@ -186,12 +191,12 @@ class SitioController extends Controller
     {
         $this->setTenantConnection($request);
 
-        if (!$this->verificarPermiso('Eliminar sitios')) {
-            return response()->json(['error' => 'No tienes permiso para eliminar este sitio'], 403);
-        }
+        // if (!$this->verificarPermiso('Eliminar sitios')) {
+        //     return response()->json(['error' => 'No tienes permiso para eliminar este sitio'], 403);
+        // }
 
         try {
-            DB::connection('tenant')->table('sitio')->where('id', $id)->delete();
+            DB::connection('tenant')->table('sitio')->where('id_sitio', $id)->delete();
             return response()->json(['message' => 'Sitio eliminado correctamente'], 200);
         } catch (\Exception $e) {
             Log::error('Error al eliminar sitio: ' . $e->getMessage());

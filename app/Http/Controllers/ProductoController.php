@@ -2,157 +2,90 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\Producto;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use Picqer\Barcode\BarcodeGeneratorPNG;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
-use App\Models\Usuario;
+use Illuminate\Support\Facades\Validator;
 
 class ProductoController extends Controller
 {
     /**
-     * Verifica si el usuario autenticado tiene un permiso específico.
-     *
-     * @param string $permisoNombre
-     * @return bool
-     */
-    private function verificarPermiso($permisoNombre)
-    {
-        $user = Auth::user();
-        if ($user === null) {
-            Log::error('El usuario no está autenticado.');
-            return false;
-        }
-
-        $roles = $user->roles;
-
-        // Log para ver los roles del usuario
-        Log::info('Roles del usuario:', ['roles' => $roles]);
-
-        foreach ($roles as $rol) {
-            $tienePermiso = $rol->permisos()->where('nombre', $permisoNombre)->exists();
-            Log::info('Verificando permiso:', ['rol' => $rol->nombre, 'tiene_permiso' => $tienePermiso]);
-            if ($tienePermiso) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Verifica si el usuario autenticado tiene un rol específico.
-     *
-     * @param string $rolNombre
-     * @return bool
-     */
-    private function verificarRol($rolNombre)
-    {
-        $user = Auth::user();
-        if ($user === null) {
-            Log::error('El usuario no está autenticado.');
-            return false;
-        }
-
-        $roles = $user->roles;
-
-        foreach ($roles as $rol) {
-            if ($rol->nombre === $rolNombre) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
      */
-    protected function setTenantConnection($databaseName)
+    protected function setTenantConnection(Request $request)
     {
-        // Configurar la conexión a la base de datos del tenant
+        $tenantDatabase = $request->header('X-Tenant');
+
+        if (!$tenantDatabase) {
+            abort(400, 'El encabezado X-Tenant es obligatorio.');
+        }
+
         config(['database.connections.tenant' => [
             'driver' => 'sqlite',
-            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'database' => database_path('tenants/' . $tenantDatabase),
             'prefix' => '',
             'foreign_key_constraints' => true,
         ]]);
 
-        // Purga la conexión anterior y reconecta con el tenant
         DB::purge('tenant');
         DB::reconnect('tenant');
-
-        // Establecer el nombre de la conexión de forma predeterminada
         DB::setDefaultConnection('tenant');
     }
 
     /**
-     * Display a listing of the resource.
+     * Verificar si el usuario autenticado tiene un permiso específico.
      */
-    public function index(Request $request)
+    private function verificarPermiso($permisoNombre)
     {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
+        $user = Auth::user();
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        if (!$user) {
+            Log::error('Usuario no autenticado al verificar permiso: ' . $permisoNombre);
+            return false;
         }
 
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
+        $user->load('roles.permisos');
 
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+        foreach ($user->roles as $rol) {
+            if ($rol->permisos->contains('nombre', $permisoNombre)) {
+                return true;
+            }
         }
-        return Producto::all();
+
+        Log::warning('Permiso no encontrado: ' . $permisoNombre . ' para el usuario: ' . $user->id);
+        return false;
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Mostrar una lista de productos.
+     */
+    public function index(Request $request)
+    {
+        $this->setTenantConnection($request);
+
+        $user = Auth::user();
+
+        if ($this->verificarPermiso('Puede ver productos')) {
+            $productos = Producto::all();
+            return response()->json($productos, 200);
+        }
+
+        return response()->json(['error' => 'No tienes permiso para ver productos'], 403);
+    }
+
+    /**
+     * Crear un producto.
      */
     public function store(Request $request)
     {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
+        $this->setTenantConnection($request);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Verificar si el usuario está autenticado
-        $user = Auth::user();
-        if ($user === null) {
-            Log::warning('El usuario no está autenticado al intentar crear un producto.');
-            return response()->json(['error' => 'No estás autenticado.'], 401);
-        }
-
-        // Verificar permisos
         if (!$this->verificarPermiso('Puede crear productos')) {
-            Log::warning('Permiso denegado para crear productos para el usuario:', ['user_id' => $user->id]);
             return response()->json(['error' => 'No tienes permiso para crear productos'], 403);
         }
 
-        // Validar los datos enviados en la solicitud
         $validator = Validator::make($request->all(), [
             'nombre_producto' => 'required|string|max:255',
             'tipo_producto' => 'required|string|max:255',
@@ -162,7 +95,6 @@ class ProductoController extends Controller
             'isActive' => 'required|boolean',
         ]);
 
-        // Si la validación falla
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
@@ -170,8 +102,11 @@ class ProductoController extends Controller
         DB::beginTransaction();
 
         try {
+            // Generar el código de barras antes de crear el producto
+            $codigoBarra = $this->generarCodigoDeBarras();
+            //dd($codigoBarra);
 
-            // Crear el producto en la tabla productos
+            // Crear el producto con el código de barras incluido
             $producto = Producto::create([
                 'nombre_producto' => $request->nombre_producto,
                 'tipo_producto' => $request->tipo_producto,
@@ -179,189 +114,109 @@ class ProductoController extends Controller
                 'precio' => $request->precio,
                 'id_etiqueta' => $request->id_etiqueta,
                 'isActive' => $request->isActive,
+                'codigo_barra' => $codigoBarra,
             ]);
 
-            // Obtener los correos de los administradores directamente desde la tabla usuario_rol
-            $adminEmail = Usuario::whereHas('roles', function ($query) {
-                $query->where('nombre', 'Admin');
-            })->pluck('correo_electronico')->toArray();
-
-            // Verificar que haya correos de administradores
-            if (empty($adminEmail)) {
-                throw new \Exception("No hay administradores disponibles para notificar sobre la creación del producto.");
-            }
-
-            // Enviar un correo a los administradores notificando la creación del producto
-            Mail::raw('Se ha creado un nuevo producto.', function ($message) use ($adminEmail) {
-                $message->to($adminEmail)
-                    ->subject('Nuevo Producto Creado');
-            });
-
-            // Generar el código de barras y asignarlo al producto
-            $codigoBarra = $this->generarCodigoDeBarras();
-            $producto->codigo_barra = $codigoBarra;
-            $producto->save();
-
             DB::commit();
-
-            return response()->json(['message' => 'Producto creado y notificación enviada correctamente.'], 201);
+            return response()->json(['message' => 'Producto creado con éxito', 'producto' => $producto], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            // Registrar el error en los logs
-            Log::error('Error al crear el producto: ' . $e->getMessage());
-            return response()->json(['errors' => 'Hubo un error al crear el producto. Por favor, inténtelo de nuevo.'], 500);
+            Log::error('Error al crear producto: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al crear producto'], 500);
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Request $request, string $id)
-    {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        return Producto::find($id);
-    }
 
     /**
-     * Update the specified resource in storage.
+     * Mostrar un producto específico.
      */
-    public function update(Request $request, string $id)
+    public function show(Request $request, $id)
     {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
+        $this->setTenantConnection($request);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        // if (!$this->verificarPermiso('Puede ver productos')) {
+        //     return response()->json(['error' => 'No tienes permiso para ver productos'], 403);
+        // }
 
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Verificar permiso
-        if (!$this->verificarPermiso('Puede actualizar productos')) {
-            return response()->json(['error' => 'No tienes permiso para actualizar productos'], 403);
-        }
-
-        // Validar la solicitud
-        $validator = Validator::make($request->all(), [
-            'nombre_producto' => 'sometimes|required|string|max:255',
-            'tipo_producto' => 'sometimes|required|string|max:255',
-            'descripcion_producto' => 'sometimes|required|string|max:255',
-            'precio' => 'sometimes|required|numeric',
-            'id_etiqueta' => 'integer|nullable',
-            'isActive' => 'sometimes|required|boolean',
-        ]);
-
-        // Si la validación falla
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 400);
-        }
-
-        DB::beginTransaction();
-        try {
-            // Buscar el producto por ID
-            $producto = Producto::findOrFail($id);
-
-            // Actualizar el producto
-            $producto->update($request->all());
-
-            DB::commit();
-            return response()->json($producto, 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error al actualizar producto: ' . $e->getMessage());
-            return response()->json(['error' => 'Error al actualizar el producto'], 500);
-        }
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Request $request, string $id)
-    {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Verificar permiso
-        if (!$this->verificarPermiso('Puede eliminar productos')) {
-            return response()->json(['error' => 'No tienes permiso para eliminar productos'], 403);
-        }
-
-        // Buscar el producto por ID
         $producto = Producto::find($id);
 
-        // Si el producto no existe
         if (!$producto) {
             return response()->json(['error' => 'Producto no encontrado'], 404);
         }
 
-        // Eliminar el producto
-        $producto->delete();
-
-        return response()->json(['message' => 'Producto eliminado correctamente'], 200);
+        return response()->json($producto, 200);
     }
 
-    public function verCodigoDeBarras($id, Request $request)
+    /**
+     * Actualizar un producto.
+     */
+    public function update(Request $request, $id)
     {
-        // Validar el nombre de la base de datos del tenant
+        $this->setTenantConnection($request);
+
+        // if (!$this->verificarPermiso('Puede editar productos')) {
+        //     return response()->json(['error' => 'No tienes permiso para editar productos'], 403);
+        // }
+
         $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
+            'nombre_producto' => 'required|string|max:255',
+            'tipo_producto' => 'required|string|max:255',
+            'descripcion_producto' => 'required|string|max:255',
+            'precio' => 'required|numeric',
+            'id_etiqueta' => 'integer|nullable',
+            'isActive' => 'required|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
+        try {
+            $producto = Producto::find($id);
 
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+            if (!$producto) {
+                return response()->json(['error' => 'Producto no encontrado'], 404);
+            }
+
+            $producto->update($request->all());
+            return response()->json(['message' => 'Producto actualizado con éxito'], 200);
+        } catch (\Exception $e) {
+            Log::error('Error al actualizar producto: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al actualizar producto'], 500);
+        }
+    }
+
+    /**
+     * Eliminar un producto.
+     */
+    public function destroy(Request $request, $id)
+    {
+        $this->setTenantConnection($request);
+
+        if (!$this->verificarPermiso('Puede eliminar productos')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar productos'], 403);
         }
 
-        // Buscar el producto por ID
+        try {
+            $producto = Producto::find($id);
+
+            if (!$producto) {
+                return response()->json(['error' => 'Producto no encontrado'], 404);
+            }
+
+            $producto->delete();
+            return response()->json(['message' => 'Producto eliminado con éxito'], 200);
+        } catch (\Exception $e) {
+            Log::error('Error al eliminar producto: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al eliminar producto'], 500);
+        }
+    }
+
+    public function verCodigoDeBarras(Request $request, $id)
+    {
+        $this->setTenantConnection($request);
+
+        // Buscar el producto por ID en la base de datos del tenant (el middleware ya establece la conexión)
         $producto = Producto::findOrFail($id);
 
         // Verificar si el producto tiene un código de barras
@@ -369,7 +224,7 @@ class ProductoController extends Controller
             return response()->json(['error' => 'El producto no tiene un código de barras asignado.'], 404);
         }
 
-        // Generar la imagen del código de barras a partir del código de la base de datos
+        // Generar la imagen del código de barras a partir del código almacenado
         $generatorPNG = new BarcodeGeneratorPNG();
         $image = $generatorPNG->getBarcode($producto->codigo_barra, $generatorPNG::TYPE_CODE_128);
 
@@ -383,87 +238,5 @@ class ProductoController extends Controller
         $codigoBarra = str_pad(rand(0, 99999999), 8, '0', STR_PAD_LEFT);
 
         return $codigoBarra;
-    }
-
-    public function paginatedIndex(Request $request)
-    {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Validar la solicitud
-        $validator = Validator::make($request->all(), [
-            'nombre_producto' => 'sometimes|string|max:255',
-            'tipo_producto' => 'sometimes|string|max:255',
-            'descripcion_producto' => 'sometimes|string|max:255',
-            'precio' => 'sometimes|numeric',
-            'id_etiqueta' => 'sometimes|integer|nullable',
-            'deleted_at' => 'sometimes|boolean', // Use boolean to filter active/inactive
-            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Obtener los datos validados
-        $validatedData = $validator->validated();
-
-        // Construir la consulta con los filtros opcionales
-        $query = Producto::with('etiquetas'); // Incluye las etiquetas relacionadas
-
-        if (isset($validatedData['nombre_producto'])) {
-            $query->where('nombre_producto', 'like', '%' . $validatedData['nombre_producto'] . '%');
-        }
-
-        if (isset($validatedData['tipo_producto'])) {
-            $query->where('tipo_producto', 'like', '%' . $validatedData['tipo_producto'] . '%');
-        }
-
-        if (isset($validatedData['descripcion_producto'])) {
-            $query->where('descripcion_producto', 'like', '%' . $validatedData['descripcion_producto'] . '%');
-        }
-
-        if (isset($validatedData['precio'])) {
-            $query->where('precio', $validatedData['precio']);
-        }
-
-        if (isset($validatedData['id_etiqueta'])) {
-            // Filtrar productos que tengan una etiqueta específica
-            $query->whereHas('etiquetas', function ($q) use ($validatedData) {
-                $q->where('etiqueta_id', $validatedData['id_etiqueta']);
-            });
-        }
-
-        // Filtrar por deleted_at
-        if (isset($validatedData['deleted_at'])) {
-            if ($validatedData['deleted_at']) {
-                $query->onlyTrashed(); // Solo productos eliminados
-            } else {
-                $query->withTrashed(); // Todos los productos, incluidos los eliminados
-            }
-        }
-
-        // Obtener el número de resultados por página, por defecto 15
-        $perPage = $validatedData['per_page'] ?? 15;
-
-        // Obtener los resultados paginados
-        $productos = $query->paginate($perPage);
-
-        return response()->json($productos);
     }
 }

@@ -24,18 +24,86 @@ use App\Http\Controllers\RolPermisoController;
 
 //Agrupar por middleware perzonalizado
 Route::middleware('TenantAuthPermissions')->group(function () {
+
+    //rutas de usuarios
     Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
     Route::get('/usuarios/{id}', [UsuarioController::class, 'show']);  // Ruta para mostrar un usuario específico
     Route::delete('/usuarios/{id}', [UsuarioController::class, 'destroy']);  // Ruta para eliminar un usuario
     Route::put('/usuario/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar un usuario
 
-    
+    //rutas de roles
+    Route::get('/roles', [RolController::class, 'index']);  // Ruta para listar roles
+    Route::post('/roles', [RolController::class, 'store']);  // Ruta para crear un rol
+    Route::get('/roles/{id}', [RolController::class, 'show']);  // Ruta para mostrar un rol específico
+    Route::put('/roles/{id}', [RolController::class, 'update']);  // Ruta para actualizar un rol
+    Route::delete('/roles/{id}', [RolController::class, 'destroy']);  // Ruta para eliminar un rol
+
+    //rutas de permisos
+    Route::get('/permisos', [PermisoController::class, 'index']);  // Ruta para listar permisos
+    Route::post('/permisos', [PermisoController::class, 'store']);  // Ruta para crear un permiso
+    Route::get('/permisos/{id}', [PermisoController::class, 'show']);  // Ruta para mostrar un permiso específico
+    Route::put('/permisos/{id}', [PermisoController::class, 'update']);  // Ruta para actualizar un permiso
+    Route::delete('/permisos/{id}', [PermisoController::class, 'destroy']);  // Ruta para eliminar un permiso
+
+    // Listar roles y sus permisos
+    Route::get('roles', [RolPermisoController::class, 'index']); // Listar roles y sus permisos
+    Route::post('roles/permiso', [RolPermisoController::class, 'store']); // Asignar un permiso a un rol
+    Route::get('roles/{rolId}/permisos', [RolPermisoController::class, 'show']); // Obtener permisos de un rol
+    Route::delete('roles/permiso/{permisoId}', [RolPermisoController::class, 'destroy']); // Eliminar un permiso de un rol
+
     //rutas de sitios
     Route::post('/sitios', [SitioController::class, 'store']);
     Route::get('/sitios', [SitioController::class, 'index']);
     Route::get('/sitios/{id}', [SitioController::class, 'show']);
     Route::put('/sitios/{id}', [SitioController::class, 'update']);
     Route::delete('/sitios/{id}', [SitioController::class, 'destroy']);
+
+    //rutas de etiquetas
+    Route::get('/etiquetas', [EtiquetaController::class, 'index']);
+    Route::get('/etiquetas/{id}', [EtiquetaController::class, 'show']);
+    Route::post('/etiquetas', [EtiquetaController::class, 'store']);
+    Route::put('/etiquetas/{id}', [EtiquetaController::class, 'update']);
+    Route::delete('/etiquetas/{id}', [EtiquetaController::class, 'destroy']);
+
+    //rutas de proveedores
+    Route::get('/proveedores', [ProveedorController::class, 'index']);
+    Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
+    Route::put('/proveedores/{id}', [ProveedorController::class, 'update']);
+    Route::delete('/proveedores/{id}', [ProveedorController::class, 'destroy']);
+    Route::post('/proveedor', [ProveedorController::class, 'store']);
+
+
+    //rutas de productos
+    Route::get('/productos/{id}', [ProductoController::class, 'show']);
+    Route::get('/productos', [ProductoController::class, 'index']);
+    Route::post('/productos', [ProductoController::class, 'store']);
+    Route::delete('/productos/{id}', [ProductoController::class, 'destroy']);
+    Route::put('/productos/{id}', [ProductoController::class, 'update']);
+
+    //rutas barcodes
+    Route::get('producto/{id}/barcode', [ProductoController::class, 'verCodigoDeBarras']);
+    Route::get('lote/{id}/barcode', [LoteController::class, 'verCodigoDeBarras']);
+    Route::post('/BC-Lote', [LoteController::class, 'showByCodigoLote']);
+
+    //rutas de lotes
+    Route::get('/lotes', [LoteController::class, 'index']);
+    Route::get('/lotes/{id}', [LoteController::class, 'show']);
+    Route::post('/lotes', [LoteController::class, 'store']);
+    Route::put('/lotes/{id}', [LoteController::class, 'update']);
+    Route::delete('/lotes/{id}', [LoteController::class, 'destroy']);
+
+
+    //rutas de comprobantes
+    Route::get('/comprobantes', [ComprobanteController::class, 'index']);  // Listar todos los comprobantes
+    Route::get('/comprobantes/{id}', [ComprobanteController::class, 'show']);  // Mostrar un comprobante específico
+    Route::post('/comprobantes', [ComprobanteController::class, 'store']);
+    Route::get('/comprobante/{id}/pdf', [ComprobanteController::class, 'generarPDF']);
+    Route::get('/comprobantes/sitio/{id}', [ComprobanteController::class, 'obtenerComprobantesPorSitio']);
+
+    //rutas de retorno
+    Route::get('/retornos', [RetornoController::class, 'index']);
+    Route::get('/retornos/{id}', [RetornoController::class, 'show']);
+    Route::post('/retornos', [RetornoController::class, 'store']);;
 });
 
 
@@ -45,33 +113,13 @@ Route::post('/planes', [PlanController::class, 'store']);
 Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
 Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
 
-Route::prefix('roles')->group(function () {
-    Route::get('/', [RolController::class, 'index']);  // Obtener todos los roles
-    Route::post('/', [RolController::class, 'store']); // Crear un rol
-    Route::get('{id}', [RolController::class, 'show']); // Mostrar un rol específico
-    Route::put('{id}', [RolController::class, 'update']); // Actualizar un rol
-    Route::delete('{id}', [RolController::class, 'destroy']); // Eliminar un rol
-});
 
 
-Route::prefix('permisos')->group(function () {
-    Route::get('/', [PermisoController::class, 'index']);  // Obtener todos los permisos
-    Route::post('/', [PermisoController::class, 'store']); // Crear un permiso
-    Route::get('{id}', [PermisoController::class, 'show']); // Mostrar un permiso específico
-    Route::put('{id}', [PermisoController::class, 'update']); // Actualizar un permiso
-    Route::delete('{id}', [PermisoController::class, 'destroy']); // Eliminar un permiso
-});
 
 Route::prefix('usuario_rol')->group(function () {
     Route::post('/', [UsuarioRolController::class, 'store']);  // Asignar un rol a un usuario
     Route::delete('/', [UsuarioRolController::class, 'destroy']); // Remover un rol de un usuario
     Route::get('{usuario_id}', [UsuarioRolController::class, 'show']); // Obtener roles de un usuario
-});
-
-Route::prefix('rol_permiso')->group(function () {
-    Route::post('/', [RolPermisoController::class, 'store']);  // Asignar un permiso a un rol
-    Route::delete('/', [RolPermisoController::class, 'destroy']); // Remover un permiso de un rol
-    Route::get('{rol_id}', [RolPermisoController::class, 'show']); // Obtener permisos de un rol
 });
 
 
@@ -101,13 +149,6 @@ Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
 Route::post('/demo', [UsuarioController::class, 'requestDemo']);
 
 
-//rutas de proveedores
-Route::get('/proveedores', [ProveedorController::class, 'index']);
-Route::get('/proveedores/{id}', [ProveedorController::class, 'show']);
-Route::put('/proveedores/{id}', [ProveedorController::class, 'update']);
-Route::delete('/proveedores/{id}', [ProveedorController::class, 'destroy']);
-Route::get('/proveedores-pagination', [ProveedorController::class, 'paginatedIndex']);
-Route::post('/proveedor', [ProveedorController::class, 'store']);
 
 
 
@@ -129,48 +170,10 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/demo/reject/', [UsuarioController::class, 'rejectDemo']);
 
 
-    //rutas de etiquetas
-
-
-
-
-    //rutas de comprobantes
-    Route::get('/comprobantes', [ComprobanteController::class, 'index']);  // Listar todos los comprobantes
-    Route::get('/comprobantes/{id}', [ComprobanteController::class, 'show']);  // Mostrar un comprobante específico
-    Route::post('/comprobantes', [ComprobanteController::class, 'store']);
-    Route::get('/comprobante/{id}/pdf', [ComprobanteController::class, 'generarPDF']);
-    Route::get('/comprobantes/sitio/{id}', [ComprobanteController::class, 'obtenerComprobantesPorSitio']);
-
-
-    //rutas de productos
-
-    //rutas de retorno
-    Route::get('/retornos', [RetornoController::class, 'index']);
-    Route::get('/retornos/{id}', [RetornoController::class, 'show']);
-    Route::post('/retornos', [RetornoController::class, 'store']);;
-
-
-
-    //rutas barcodes
-    Route::get('producto/{id}/barcode', [ProductoController::class, 'verCodigoDeBarras']);
-    Route::get('lote/{id}/barcode', [LoteController::class, 'verCodigoDeBarras']);
-    Route::post('/BC-Lote', [LoteController::class, 'showByCodigoLote']);
-
-    //rutas de paginacion
-    Route::get('/productos-pagination', [ProductoController::class, 'paginatedIndex']);
-    Route::get('/lotes-pagination', [LoteController::class, 'paginatedIndex']);
-    Route::get('/etiquetas-pagination', [EtiquetaController::class, 'paginatedIndex']);
-    Route::get('/comprobantes-pagination', [ComprobanteController::class, 'paginatedIndex']);
-    Route::get('/retornos-pagination', [RetornoController::class, 'paginatedIndex']);
-    Route::get('/facturas-pagination', [FacturaController::class, 'paginatedIndex']);
-    Route::get('/metodo-pagination', [MetodoPagoController::class, 'paginatedIndex']);
-
     //rutas de confirmar pagos
     Route::post('/rechazar-pago/{id}', [UsuarioController::class, 'rechazarPago'])->name('pago.rechazar');
 
-
     //rutas de planes
-
     Route::get('/planes/{id}', [PlanController::class, 'show']);
     Route::put('/planes/{id}', [PlanController::class, 'update']);
 
@@ -189,20 +192,3 @@ Route::middleware('auth:api')->group(function () {
 });
 
 Route::put('/usuarios/habilitar/{id}', [UsuarioController::class, 'habilitarUsuario'])->name('api.usuarios.habilitar');
-//rutas de lotes
-Route::get('/lotes', [LoteController::class, 'index']);
-Route::get('/lotes/{id}', [LoteController::class, 'show']);
-Route::post('/lotes', [LoteController::class, 'store']);
-Route::put('/lotes/{id}', [LoteController::class, 'update']);
-Route::delete('/lotes/{id}', [LoteController::class, 'destroy']);
-Route::get('/productos/{id}', [ProductoController::class, 'show']);
-Route::get('/productos', [ProductoController::class, 'index']);
-Route::post('/productos', [ProductoController::class, 'store']);
-Route::delete('/productos/{id}', [ProductoController::class, 'destroy']);
-Route::put('/productos/{id}', [ProductoController::class, 'update']);
-
-Route::get('/etiquetas', [EtiquetaController::class, 'index']);
-Route::get('/etiquetas/{id}', [EtiquetaController::class, 'show']);
-Route::post('/etiquetas', [EtiquetaController::class, 'store']);
-Route::put('/etiquetas/{id}', [EtiquetaController::class, 'update']);
-Route::delete('/etiquetas/{id}', [EtiquetaController::class, 'destroy']);

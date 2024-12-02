@@ -8,163 +8,157 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 
 class RolPermisoController extends Controller
 {
     /**
-     * Verifica si el usuario autenticado tiene un permiso específico.
-     */
-    private function verificarPermiso($permisoNombre)
-    {
-        try {
-            $user = Auth::user();
-            $roles = $user->roles;
-
-            foreach ($roles as $rol) {
-                if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
-                    return true;
-                }
-            }
-
-            return false;
-        } catch (\Exception $e) {
-            Log::error('Error en verificarPermiso: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Verifica si el usuario autenticado tiene un rol específico.
-     *
-     * @param string $rolNombre
-     * @return bool
-     */
-    private function verificarRol($rolNombre)
-    {
-        try {
-            $user = Auth::user();
-            $roles = $user->roles;
-
-            foreach ($roles as $rol) {
-                if ($rol->nombre === $rolNombre) {
-                    return true;
-                }
-            }
-
-            return false;
-        } catch (\Exception $e) {
-            Log::error('Error en verificarRol: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
      * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
      */
-    protected function setTenantConnection($databaseName)
+    protected function setTenantConnection(Request $request)
     {
-        // Configurar la conexión a la base de datos del tenant
+        $tenantDatabase = $request->header('X-Tenant');
+
+        if (!$tenantDatabase) {
+            abort(400, 'El encabezado X-Tenant es obligatorio.');
+        }
+
         config(['database.connections.tenant' => [
             'driver' => 'sqlite',
-            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'database' => database_path('tenants/' . $tenantDatabase),
             'prefix' => '',
             'foreign_key_constraints' => true,
         ]]);
 
-        // Purga la conexión anterior y reconecta con el tenant
         DB::purge('tenant');
         DB::reconnect('tenant');
-
-        // Establecer el nombre de la conexión de forma predeterminada
         DB::setDefaultConnection('tenant');
     }
 
-    // Asignar un permiso a un rol
+    /**
+     * Verificar si el usuario autenticado tiene un permiso específico.
+     */
+    private function verificarPermiso($permisoNombre)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            Log::error('Usuario no autenticado al verificar permiso: ' . $permisoNombre);
+            return false;
+        }
+
+        $user->load('roles.permisos');
+
+        foreach ($user->roles as $rol) {
+            if ($rol->permisos->contains('nombre', $permisoNombre)) {
+                return true;
+            }
+        }
+
+        Log::warning('Permiso no encontrado: ' . $permisoNombre . ' para el usuario: ' . $user->id);
+        return false;
+    }
+
+    /**
+     * Verificar si el usuario autenticado tiene un rol específico.
+     */
+    private function verificarRol($rolNombre)
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            Log::error('Usuario no autenticado al verificar rol: ' . $rolNombre);
+            return false;
+        }
+
+        $user->load('roles');
+
+        foreach ($user->roles as $rol) {
+            if ($rol->nombre === $rolNombre) {
+                return true;
+            }
+        }
+
+        Log::warning('Rol no encontrado: ' . $rolNombre . ' para el usuario: ' . $user->id);
+        return false;
+    }
+
+    /**
+     * Asignar un permiso a un rol.
+     */
     public function store(Request $request)
     {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
+        $this->setTenantConnection($request);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        // Verificar si el usuario tiene el rol adecuado
+        if ($this->verificarRol('Admin') || $this->verificarRol('Owner')) {
+            $request->validate([
+                'rol_id' => 'required|exists:roles,id',
+                'permiso_id' => 'required|exists:permisos,id',
+            ]);
 
-        // Verificar el rol del usuario autenticado
-        if ($this->verificarRol('Admin')) {
-            // Los administradores pueden asignar permisos directamente en la base de datos principal
-        } elseif ($this->verificarRol('Owner')) {
-            // Establecer la conexión al tenant si es 'Owner'
-            $tenantDatabase = $request->tenant_database;
-            $this->setTenantConnection($tenantDatabase);
+            $rol = Rol::findOrFail($request->rol_id);
+            $permiso = Permiso::findOrFail($request->permiso_id);
 
-            // Verificar que la conexión se haya establecido
-            if (!DB::connection('tenant')->getDatabaseName()) {
-                return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+            // Verificar si el permiso tiene un ID mayor a 78 (no editable ni borrable)
+            if ($permiso->id <= 78) {
+                return response()->json(['error' => 'Este permiso no puede ser asignado'], 403);
             }
-        } else {
-            return response()->json(['error' => 'No tienes permiso para realizar esta acción'], 403);
+
+            $rol->permisos()->attach($permiso);
+            return response()->json(['message' => 'Permiso asignado al rol correctamente']);
         }
 
-        $request->validate([
-            'rol_id' => 'required|exists:roles,id',
-            'permiso_id' => 'required|exists:permisos,id',
-        ]);
-
-        $rol = Rol::findOrFail($request->rol_id);
-        $permiso = Permiso::findOrFail($request->permiso_id);
-
-        $rol->permisos()->attach($permiso);
-        return response()->json(['message' => 'Permiso asignado al rol correctamente']);
+        return response()->json(['error' => 'No tienes permiso para asignar permisos'], 403);
     }
 
-    // Remover un permiso de un rol
-    public function destroy(Request $request)
+    /**
+     * Eliminar un permiso de un rol.
+     */
+    public function destroy(Request $request, $permisoId)
     {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
+        $this->setTenantConnection($request);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        // Verificar si el usuario tiene el rol adecuado
+        if ($this->verificarRol('Admin') || $this->verificarRol('Owner')) {
+            $request->validate([
+                'rol_id' => 'required|exists:roles,id',
+            ]);
 
-        // Verificar el rol del usuario autenticado
-        if ($this->verificarRol('Admin')) {
-            // Los administradores pueden eliminar permisos directamente en la base de datos principal
-        } elseif ($this->verificarRol('Owner')) {
-            // Establecer la conexión al tenant si es 'Owner'
-            $tenantDatabase = $request->tenant_database;
-            $this->setTenantConnection($tenantDatabase);
+            $rol = Rol::findOrFail($request->rol_id);
+            $permiso = Permiso::findOrFail($permisoId);
 
-            // Verificar que la conexión se haya establecido
-            if (!DB::connection('tenant')->getDatabaseName()) {
-                return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+            // No permitir eliminar permisos con ID entre 1 y 78
+            if ($permiso->id <= 78) {
+                return response()->json(['error' => 'Este permiso no puede ser removido del rol'], 403);
             }
-        } else {
-            return response()->json(['error' => 'No tienes permiso para realizar esta acción'], 403);
+
+            // Eliminar el permiso del rol
+            $rol->permisos()->detach($permiso);
+            return response()->json(['message' => 'Permiso removido del rol correctamente']);
         }
 
-        $request->validate([
-            'rol_id' => 'required|exists:roles,id',
-            'permiso_id' => 'required|exists:permisos,id',
-        ]);
-
-        $rol = Rol::findOrFail($request->rol_id);
-        $permiso = Permiso::findOrFail($request->permiso_id);
-
-        $rol->permisos()->detach($permiso);
-        return response()->json(['message' => 'Permiso removido del rol correctamente']);
+        return response()->json(['error' => 'No tienes permiso para eliminar permisos'], 403);
     }
 
-    // Obtener los permisos de un rol
+
+    /**
+     * Obtener los permisos de un rol.
+     */
     public function show($rolId)
     {
         $rol = Rol::findOrFail($rolId);
         $permisos = $rol->permisos;
         return response()->json($permisos);
+    }
+
+    /**
+     * Listar todos los roles y sus permisos.
+     */
+    public function index(Request $request)
+    {
+        $this->setTenantConnection($request);
+
+        $roles = Rol::with('permisos')->get();
+        return response()->json($roles);
     }
 }

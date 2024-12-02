@@ -19,6 +19,7 @@ class Producto extends Model
         'descripcion_producto',
         'precio',
         'isActive',
+        'codigo_barra'
     ];
 
     // Relación muchos a muchos con Etiqueta
