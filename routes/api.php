@@ -19,7 +19,7 @@ use App\Http\Controllers\RolController;
 use App\Http\Controllers\PermisoController;
 use App\Http\Controllers\UsuarioRolController;
 use App\Http\Controllers\RolPermisoController;
-use APP\Http\Controllers\ExportarController;
+use App\Http\Controllers\ExportarController;
 
 
 //Agrupar por middleware perzonalizado
