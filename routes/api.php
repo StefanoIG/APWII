@@ -25,6 +25,7 @@ use App\Http\Controllers\ExportarController;
 //Agrupar por middleware perzonalizado
 Route::middleware('TenantAuthPermissions')->group(function () {
 
+    //Rutas de exportacion de datos
     Route::get('exportar/excel', [ExportarController::class, 'exportarExcel']);
     Route::get('exportar/sql', [ExportarController::class, 'exportarSQL']);
 
@@ -105,74 +106,34 @@ Route::middleware('TenantAuthPermissions')->group(function () {
     Route::get('/retornos', [RetornoController::class, 'index']);
     Route::get('/retornos/{id}', [RetornoController::class, 'show']);
     Route::post('/retornos', [RetornoController::class, 'store']);;
+
+    //Rutas para Rol a Usuarios (UsuarioRolController)
+    Route::post('/asignar/rol', [UsuarioRolController::class, 'store']);
+
+    //Ruta de registro empleado
+    Route::post('/register/employee', [UsuarioController::class, 'registerForEmployee']);
+
+    //Ruta para ver las facturas
+    Route::get('/facturas', [FacturaController::class, 'index']);
+    Route::get('/facturas/{id}', [FacturaController::class, 'show']);
 });
 
 
 
-
-Route::post('/planes', [PlanController::class, 'store']);
-Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
-Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
-
-
-
-
-Route::prefix('usuario_rol')->group(function () {
-    Route::post('/', [UsuarioRolController::class, 'store']);  // Asignar un rol a un usuario
-    Route::delete('/', [UsuarioRolController::class, 'destroy']); // Remover un rol de un usuario
-    Route::get('{usuario_id}', [UsuarioRolController::class, 'show']); // Obtener roles de un usuario
-});
-
-
-//rutas de paypal publicas
-Route::get('/payment/success', [UsuarioController::class, 'paymentSuccess'])->name('paypal.payment.success');
-Route::get('/payment/cancel', [UsuarioController::class, 'paymentCancel'])->name('paypal.payment.cancel');
-Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->name('paypal.payment.failure');
-
-
-Route::post('registerTe', [UsuarioController::class, 'registerTe']);
-Route::get('/planes', [PlanController::class, 'index']);
-
-//rutas chatbot
-Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
-
-
-
-//rutas de autenticación
-Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
-Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para el registro de usuarios
-
-//recuperar contra
-Route::post('/forget', [UsuarioController::class, 'recoveryPassword']);
-Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
-
-//requets demo
-Route::post('/demo', [UsuarioController::class, 'requestDemo']);
-
-
-
-
-
-//rutas protegidas
+//rutas protegidas (Bd Master)
 Route::middleware('auth:api')->group(function () {
-    //register tenant de owners
-    Route::post('/registerTe', [UsuarioController::class, 'registerForOwner']);
     //rutas chatbot
     Route::post('/questions', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
     Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
-
-
-    //rutas de usuarios 
-    Route::put('/usuarios/{id}', [UsuarioController::class, 'update']);  // Ruta para actualizar usuario
 
 
     //rutas de demo
     Route::post('/demo/approve/', [UsuarioController::class, 'approveDemo']);
     Route::post('/demo/reject/', [UsuarioController::class, 'rejectDemo']);
 
-
-    //rutas de confirmar pagos
+    //rutas de manejo de pagos bancarios
     Route::post('/rechazar-pago/{id}', [UsuarioController::class, 'rechazarPago'])->name('pago.rechazar');
+    Route::put('/usuarios/habilitar/{id}', [UsuarioController::class, 'habilitarUsuario'])->name('api.usuarios.habilitar');
 
     //rutas de planes
     Route::get('/planes/{id}', [PlanController::class, 'show']);
@@ -192,4 +153,34 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
 });
 
-Route::put('/usuarios/habilitar/{id}', [UsuarioController::class, 'habilitarUsuario'])->name('api.usuarios.habilitar');
+
+//Rutas principales
+Route::post('/planes', [PlanController::class, 'store']);
+Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
+Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
+
+
+
+//rutas de paypal publicas
+Route::get('/payment/success', [UsuarioController::class, 'paymentSuccess'])->name('paypal.payment.success');
+Route::get('/payment/cancel', [UsuarioController::class, 'paymentCancel'])->name('paypal.payment.cancel');
+Route::get('/payment/failure', [UsuarioController::class, 'paymentFailure'])->name('paypal.payment.failure');
+
+//Ruta para ver los planes
+Route::get('/planes', [PlanController::class, 'index']);
+
+//rutas chatbot
+Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
+
+
+
+//rutas de autenticación
+Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
+Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para el registro de usuarios
+
+//recuperar contra
+Route::post('/forget', [UsuarioController::class, 'recoveryPassword']);
+Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
+
+//requets demo
+Route::post('/demo', [UsuarioController::class, 'requestDemo']);
