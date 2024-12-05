@@ -29,7 +29,6 @@ Route::middleware('TenantAuthPermissions')->group(function () {
     Route::get('exportar/excel', [ExportarController::class, 'exportarExcel']);
     Route::get('exportar/sql', [ExportarController::class, 'exportarSQL']);
 
-
     //rutas de usuarios
     Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
     Route::get('/usuarios/{id}', [UsuarioController::class, 'show']);  // Ruta para mostrar un usuario específico
