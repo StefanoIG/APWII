@@ -44,10 +44,7 @@ Route::middleware('TenantAuthPermissions')->group(function () {
 
     //rutas de permisos
     Route::get('/permisos', [PermisoController::class, 'index']);  // Ruta para listar permisos
-    Route::post('/permisos', [PermisoController::class, 'store']);  // Ruta para crear un permiso
     Route::get('/permisos/{id}', [PermisoController::class, 'show']);  // Ruta para mostrar un permiso específico
-    Route::put('/permisos/{id}', [PermisoController::class, 'update']);  // Ruta para actualizar un permiso
-    Route::delete('/permisos/{id}', [PermisoController::class, 'destroy']);  // Ruta para eliminar un permiso
 
     // Listar roles y sus permisos
     Route::get('roles', [RolPermisoController::class, 'index']); // Listar roles y sus permisos

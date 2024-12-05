@@ -32,7 +32,6 @@ use App\Models\Factura;
 use App\Models\DetalleFactura;
 use App\Models\Tenant;
 use App\Models\Sitio;
-
 use Illuminate\Support\Facades\File;
 use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
 

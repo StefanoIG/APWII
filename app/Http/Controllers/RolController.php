@@ -105,14 +105,7 @@ class RolController extends Controller
             $rol = Rol::create($request->all());
             return response()->json($rol, 201);
         } elseif ($this->verificarRol('Owner')) {
-            // Validar el nombre de la base de datos del tenant
-            $validator = Validator::make($request->all(), [
-                'tenant_database' => 'required|string',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
+            
 
             // Verificar que la conexión al tenant se haya establecido
             if (!DB::connection('tenant')->getDatabaseName()) {

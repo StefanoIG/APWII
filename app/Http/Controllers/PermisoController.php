@@ -91,25 +91,6 @@ class PermisoController extends Controller
         return response()->json($permisos);
     }
 
-    // Crear un nuevo permiso
-    public function store(Request $request)
-    {
-        $this->setTenantConnection($request);
-
-        // Verificar que el usuario tenga el rol necesario
-        if ($this->verificarRol('Admin') || $this->verificarRol('Owner')) {
-            $request->validate([
-                'nombre' => 'required|unique:permisos',
-                'descripcion' => 'nullable|string',
-            ]);
-
-            $permiso = Permiso::create($request->all());
-            return response()->json($permiso, 201);
-        }
-
-        return response()->json(['error' => 'No tienes permisos para crear permisos'], 403);
-    }
-
     // Mostrar un permiso específico
     public function show(Request $request, $id)
     {
@@ -119,50 +100,4 @@ class PermisoController extends Controller
         return response()->json($permiso);
     }
 
-    // Actualizar un permiso
-    public function update(Request $request, $id)
-    {
-        $this->setTenantConnection($request);
-
-        // No permitir actualizar permisos con ID entre 1 y 39
-        if (in_array($id, range(1, 39))) {
-            return response()->json(['error' => 'No puedes actualizar este permiso'], 403);
-        }
-
-        $permiso = Permiso::findOrFail($id);
-
-        // Verificar que el usuario tenga el rol necesario
-        if ($this->verificarRol('Admin') || $this->verificarRol('Owner')) {
-            $request->validate([
-                'nombre' => 'required|unique:permisos,nombre,' . $permiso->id,
-                'descripcion' => 'nullable|string',
-            ]);
-
-            $permiso->update($request->all());
-            return response()->json($permiso);
-        }
-
-        return response()->json(['error' => 'No tienes permisos para actualizar permisos'], 403);
-    }
-
-    // Eliminar un permiso
-    public function destroy(Request $request, $id)
-    {
-        $this->setTenantConnection($request);
-
-        // No permitir eliminar permisos con ID entre 1 y 39
-        if (in_array($id, range(1, 39))) {
-            return response()->json(['error' => 'No puedes eliminar este permiso'], 403);
-        }
-
-        $permiso = Permiso::findOrFail($id);
-
-        // Verificar que el usuario tenga el rol necesario
-        if ($this->verificarRol('Admin') || $this->verificarRol('Owner')) {
-            $permiso->delete();
-            return response()->json(null, 204);
-        }
-
-        return response()->json(['error' => 'No tienes permisos para eliminar permisos'], 403);
-    }
 }
