@@ -99,8 +99,9 @@ class RolPermisoController extends Controller
             $rol = Rol::findOrFail($request->rol_id);
             $permiso = Permiso::findOrFail($request->permiso_id);
 
-            // Verificar si el permiso tiene un ID mayor a 78 (no editable ni borrable)
-            if ($permiso->id <= 78) {
+            // Verificar si el permiso tiene un ID que no está permitido
+            $permisosNoPermitidos = [2, 3, 4, 15, 16, 20, 21, 22, 23, 24, 25, 26, 27, 39];
+            if (in_array($permiso->id, $permisosNoPermitidos)) {
                 return response()->json(['error' => 'Este permiso no puede ser asignado'], 403);
             }
 
