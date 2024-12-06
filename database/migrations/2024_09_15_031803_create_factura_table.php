@@ -26,6 +26,7 @@ return new class extends Migration
             $table->enum('estado', ['pendiente', 'pagado', 'cancelado'])->default('pendiente');
             $table->timestamps();
             $table->softDeletes();
+            $table->date('proxima_fecha_pago')->nullable(); // Fecha opcional para periodo de gracia
             $table->date('fecha_gracia')->nullable(); // Fecha opcional para periodo de gracia
 
         });

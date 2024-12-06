@@ -18,4 +18,4 @@ RUN php artisan route:cache
 EXPOSE 80
 
 # Default command to run when the container starts
-CMD ["/start.sh"]
+CMD ["/deploy.sh"]

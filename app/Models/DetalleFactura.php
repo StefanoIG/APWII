@@ -15,6 +15,7 @@ class DetalleFactura extends Model
         'cantidad',
         'precio_unitario',
         'subtotal',
+        'dia_facturacion',
     ];
 
     // Relación con la factura

@@ -99,12 +99,12 @@ class FacturaController extends Controller
     
         foreach ($roles as $rol) {
             if ($rol->permisos()->where('nombre', $permisoNombre)->exists()) {
-                \Log::info("Usuario {$user->id} tiene el permiso {$permisoNombre}");
+                Log::info("Usuario {$user->id} tiene el permiso {$permisoNombre}");
                 return true;
             }
         }
     
-        \Log::warning("Usuario {$user->id} no tiene el permiso {$permisoNombre}");
+        Log::warning("Usuario {$user->id} no tiene el permiso {$permisoNombre}");
         return false;
     }
 

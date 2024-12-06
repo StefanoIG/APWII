@@ -32,10 +32,7 @@ use App\Models\Factura;
 use App\Models\DetalleFactura;
 use App\Models\Tenant;
 use App\Models\Sitio;
-
 use Illuminate\Support\Facades\File;
-
-
 use Srmklive\PayPal\Services\PayPal as PayPalClient; // Importa el cliente PayPal
 
 class UsuarioController extends Controller
@@ -67,27 +64,13 @@ class UsuarioController extends Controller
     }
 
     /**
-     * Verifica si el usuario autenticado tiene un rol específico.
-     *
-     * @param string $rolNombre
-     * @return bool
+     * Obtener el ID del rol por nombre.
      */
-    private function verificarRol($rolNombre)
+    private function getRoleIdByName($roleName)
     {
-        $user = Auth::user();
-
-        // Obtener los roles asociados al usuario
-        $roles = $user->roles; // Asumiendo que el modelo Usuario tiene una relación con roles
-
-        // Verificar si alguno de los roles coincide con el nombre del rol requerido
-        foreach ($roles as $rol) {
-            if ($rol->nombre === $rolNombre) {
-                return true;
-            }
-        }
-
-        return false;
+        return Rol::where('nombre', $roleName)->first()->id;
     }
+
 
     /**
      * Establecer la conexión al tenant correspondiente usando el nombre de la base de datos.
@@ -117,43 +100,60 @@ class UsuarioController extends Controller
      */
     public function index(Request $request)
     {
-        // Validar que se haya enviado el nombre de la base de datos
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
-        ]);
+        // Obtener el usuario autenticado
+        $user = Auth::user();
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Obtener el nombre de la base de datos del tenant desde el request
-        $tenantDatabase = $request->tenant_database;
-
-        // Establecer la conexión al tenant usando el nombre de la base de datos
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión al tenant está activa
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        $user = Auth::user(); // Obtiene el usuario autenticado
-
+        // Verificar el rol del usuario
         if ($this->verificarRol('Owner')) {
-            // Admin puede ver todos los usuarios del tenant
-            $usuarios = DB::connection('tenant')->table('usuarios')->get();
+            // Si es Owner, obtener usuarios paginados
+            $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10); // Cambia 10 por el número de resultados por página deseados
         } else {
-            // Empleado solo puede ver su propia información
+            // Si es un empleado, solo puede ver su propia información
             $usuarios = DB::connection('tenant')->table('usuarios')->where('id', $user->id)->get();
         }
 
         return response()->json($usuarios);
     }
 
+    //Funcion de show
+    public function show(Request $request, $id)
+    {
+        // Obtener el usuario autenticado
+        $user = Auth::user();
+
+        // Verificar si el usuario tiene permiso para ver el perfil solicitado
+        if ($this->verificarRol('Owner')) {
+            // Si es Owner, puede ver cualquier usuario del tenant
+            $usuario = DB::connection('tenant')->table('usuarios')->find($id);
+        } else {
+            // Si no es Owner, solo puede ver su propia información
+            if ($user->id != $id) {
+                return response()->json(['error' => 'No tienes permiso para ver esta información'], 403);
+            }
+
+            $usuario = DB::connection('tenant')->table('usuarios')->find($id);
+        }
+
+        // Verificar si el usuario existe
+        if (!$usuario) {
+            return response()->json(['error' => 'Usuario no encontrado'], 404);
+        }
+
+        return response()->json($usuario);
+    }
+
+
+
+    // Función para verificar el rol del usuario (si es necesario)
+    private function verificarRol($rol)
+    {
+        return Auth::user()->roles->contains('nombre', $rol);
+    }
+
 
 
     /**
-     * Crear un nuevo usuario.
+     * Crear un nuevo usuario de tipo owner
      */
 
     public function register(Request $request)
@@ -185,19 +185,16 @@ class UsuarioController extends Controller
             // Asignar el rol al usuario (a través de la tabla usuario_rol)
             $usuario->roles()->attach($request->rol_id);
 
-
-
             // Obtener el rol asociado al usuario
             $rol = Rol::find($request->rol_id);
-
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
                 $this->handleOwnerRegistration($request, $usuario);
-            } elseif ($rol->nombre === 'Empleado') {
-
-                $this->handleEmpleadoRegistration($request, $usuario);
             }
+            //elseif ($rol->nombre === 'Empleado') {
 
+            //     $this->handleEmpleadoRegistration($request, $usuario);
+            // }
             DB::commit();
 
             return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
@@ -208,12 +205,16 @@ class UsuarioController extends Controller
         }
     }
 
-
-    public function registerForOwner(Request $request)
+    /**
+     * Crear un nuevo usuario de tipo Empleado
+     */
+    public function registerForEmployee(Request $request)
     {
+        //Establecer la conexion al tenant
+        $this->setTenantConnection($request);
+
         // Validar que se haya enviado el nombre de la base de datos
         $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
             'nombre' => 'required|string|max:255',
             'apellido' => 'required|string|max:255',
             'telefono' => 'required|string|max:20',
@@ -226,12 +227,6 @@ class UsuarioController extends Controller
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
-        // Obtener el nombre de la base de datos del tenant desde el request
-        $tenantDatabase = $request->tenant_database;
-
-        // Establecer la conexión al tenant usando el nombre de la base de datos
-        $this->setTenantConnection($tenantDatabase);
 
         // Verificar que la conexión al tenant está activa
         if (!DB::connection('tenant')->getDatabaseName()) {
@@ -249,25 +244,27 @@ class UsuarioController extends Controller
                 return response()->json(['error' => 'Rol no permitido'], 403);
             }
 
-            // Crear el usuario en la base de datos del tenant
-            $usuario = DB::connection('tenant')->table('usuarios')->insertGetId([
-                'nombre' => $request->nombre,
-                'apellido' => $request->apellido,
-                'telefono' => $request->telefono,
-                'cedula' => $request->cedula,
-                'correo_electronico' => $request->correo_electronico,
-                'password' => $request->password,
-            ]);
+            // Crear el usuario en la base de datos del tenant reutilizando la funcion createuser
+            $usuario = $this->createUser($request);
+
 
             // Asignar el rol al usuario (a través de la tabla usuario_rol)
             DB::connection('tenant')->table('usuario_rol')->insert([
                 'usuario_id' => $usuario,
-                'rol_id' => $request->rol_id,
+                'rol_id' => 1,
             ]);
 
             // Commit de la transacción
             DB::commit();
 
+            //Enviar correo al Owner del tenant
+            $owner = DB::connection('tenant')->table('usuarios')
+                ->join('usuario_rol', 'usuarios.id', '=', 'usuario_rol.usuario_id')
+                ->where('usuario_rol.rol_id', 2)
+                ->select('usuarios.correo_electronico')
+                ->first();
+    
+                
             return response()->json(['message' => 'Usuario creado exitosamente'], 201);
         } catch (\Exception $e) {
             // Rollback si algo falla
@@ -278,9 +275,7 @@ class UsuarioController extends Controller
     }
 
 
-
-
-
+    //Funcion para crear usuario
     private function createUser(Request $request)
     {
         return Usuario::create([
@@ -293,22 +288,10 @@ class UsuarioController extends Controller
         ]);
     }
 
-    /**
-     * Obtener el ID del rol por nombre.
-     */
-    private function getRoleIdByName($roleName)
-    {
-        return Rol::where('nombre', $roleName)->first()->id;
-    }
-
-
 
     //Funcion encargada del registro de owner
     protected function handleOwnerRegistration($request, $usuario)
     {
-        // Lógica específica para el rol "Owner"
-        $this->createTenantForOwner($usuario);
-
         if ($request->metodo_pago == 1) {
 
             $this->processPaypalPayment($request, $usuario);
@@ -339,6 +322,7 @@ class UsuarioController extends Controller
         return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
     }
 
+    //Funcion para procesar el pago por transferencia bancaria
     protected function processBankTransfer($request, $usuario)
     {
         // Crear la factura antes de notificar a los administradores
@@ -357,15 +341,18 @@ class UsuarioController extends Controller
             $query->where('nombre', 'Admin');
         })->get();
 
-        foreach ($admins as $admin) {
-            Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
-        }
+        // foreach ($admins as $admin) {
+        //     Mail::to($admin->correo_electronico)->send(new ConfirmarPagoTransferencia($usuario));
+        // }
 
         // Enviar mensaje al usuario indicando que el pago será confirmado
-        Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
+        // Mail::to($usuario->correo_electronico)->send(new PagoPendienteTransferencia($usuario));
+
+        // Lógica específica para el rol "Owner"
+        $this->createTenantForOwner($usuario);
     }
 
-
+    //funcion para crear factura y detalle
     protected function crearFacturaYDetalle($usuario, $plan, $metodoPagoId, $descripcion)
     {
         $paymentPreferences = json_decode($plan->payment_preferences, true);
@@ -380,39 +367,34 @@ class UsuarioController extends Controller
         ]);
 
         // Crear el detalle de la factura
-        DetalleFactura::create([
+        $detalleFactura = DetalleFactura::create([
             'factura_id' => $factura->id,
             'descripcion' => $descripcion,
             'cantidad' => 1,
             'precio_unitario' => $setupFee,
             'subtotal' => $setupFee,
+            'dia_facturacion' => Carbon::now()->day,  // Almacenar el día actual como entero
         ]);
+
+
+        // Calcular las fechas de pago mediante la función
+        $this->calcularFechasPago($factura);
 
         return $factura;
     }
 
-
-
+    //Fucnion para crear tenants
     protected function createTenantForOwner($usuario)
     {
+        DB::beginTransaction();
         try {
-            // Generar un código aleatorio alfanumérico para asegurar la unicidad
+            // Generar un código único para el tenant
             $codigoUnico = substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 6)), 0, 8);
 
-            // Crear un nuevo tenant
-            $tenant = Tenant::create([
-                'name' => $usuario->nombre . ' ' . $usuario->apellido,
-                'domain' => Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico) . '.inventorypro.com',
-            ]);
-
-            Log::info('Tenant creado: ' . $tenant->name);
-
-            // Asignar el usuario como owner del tenant en la base de datos principal
-            $tenant->usuarios()->attach($usuario->id, ['rol_id' => 3]);
-            Log::info('Usuario asignado como owner del tenant');
-
-            // Ruta donde se creará la base de datos SQLite
-            $databasePath = database_path('tenants/' . Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico) . '.sqlite');
+            // Crear el nombre y la ruta de la base de datos del tenant
+            $tenantName = $usuario->nombre . ' ' . $usuario->apellido;
+            $tenantSlug = Str::slug($usuario->nombre . $usuario->apellido . '-' . $codigoUnico);
+            $databasePath = database_path('tenants/' . $tenantSlug . '.sqlite');
 
             // Asegurarse de que la carpeta 'tenants' existe
             if (!File::exists(database_path('tenants'))) {
@@ -426,7 +408,36 @@ class UsuarioController extends Controller
 
             Log::info('Base de datos SQLite creada en: ' . $databasePath);
 
-            // Cambiar dinámicamente la conexión de base de datos para este tenant
+            // Guardar el tenant en la base de datos principal (tabla `tenants`)
+            $tenant = Tenant::create([
+                'id' => Str::uuid(),
+                'data' => [
+                    'database_path' => $databasePath,
+                    'name_slug' => $tenantSlug
+                ],
+                'name' => $tenantName,
+                'name_slug' => $tenantSlug,
+                'database_path' => $databasePath,
+            ]);
+
+            if (!$tenant) {
+                throw new \Exception('Error al guardar el tenant en la base de datos.');
+            }
+
+            Log::info('Tenant creado: ' . $tenant->name);
+
+            // Guardar la relación en la tabla pivote tenant_usuario
+            DB::table('tenant_usuario')->insert([
+                'usuario_id' => $usuario->id,
+                'tenant_id' => $tenant->id,
+                'rol_id' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            Log::info('Relación guardada en la tabla pivote tenant_usuario.');
+
+            // Configurar la conexión dinámica para este tenant
             config(['database.connections.tenant' => [
                 'driver' => 'sqlite',
                 'database' => $databasePath,
@@ -434,18 +445,17 @@ class UsuarioController extends Controller
                 'foreign_key_constraints' => true,
             ]]);
 
-            // Establecer la conexión del tenant
+            // Cambiar la conexión al tenant
             DB::purge('tenant');
             DB::reconnect('tenant');
             Log::info('Conexión a la base de datos del tenant establecida.');
 
-            // Excluir las migraciones específicas y ejecutar el resto de las migraciones
+            // Excluir migraciones específicas y ejecutar las demás
             $excludedMigrations = [
                 '2019_09_15_000020_create_domains_table',
                 '2019_09_15_000010_create_tenants_table',
                 '2024_09_15_031803_create_factura_table',
                 '2024_09_15_031639_create_metodo_pago_table',
-
                 '2024_09_12_220920_create__q_a_table',
                 '2019_09_15_000010_create_tenants_table',
                 '2024_09_23_014630_create_usuario_tenant_table',
@@ -453,16 +463,15 @@ class UsuarioController extends Controller
                 '2024_09_08_051844_create_demo_table',
                 '2024_09_15_031656_create_promociones_table',
                 '2024_09_15_062531_add_demo_expiry_date_to_demo_table',
-                // Añadir más migraciones si es necesario segun como se determine a posteriror
+                '2024_11_26_023950_add_columns_tenant',
+                '2024_09_23_014630_create_usuario_tenant_table',
+                '0001_01_01_000000_create_users_table'
+                // Añade otras migraciones que no deban ejecutarse en los tenants
             ];
 
             $migrations = collect(File::allFiles(database_path('migrations')))
-                ->map(function ($file) {
-                    return pathinfo($file, PATHINFO_FILENAME);
-                })
-                ->filter(function ($migration) use ($excludedMigrations) {
-                    return !in_array($migration, $excludedMigrations);
-                });
+                ->map(fn($file) => pathinfo($file, PATHINFO_FILENAME))
+                ->filter(fn($migration) => !in_array($migration, $excludedMigrations));
 
             foreach ($migrations as $migration) {
                 Artisan::call('migrate', [
@@ -489,37 +498,40 @@ class UsuarioController extends Controller
                 'telefono' => $usuario->telefono,
                 'cedula' => $usuario->cedula,
                 'correo_electronico' => $usuario->correo_electronico,
-                'password' => $usuario->password,  // Asume que ya está encriptada
+                'password' => $usuario->password, // Asume que ya está encriptada
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
+            if (!$usuarioTenant) {
+                throw new \Exception('Error al insertar el usuario en la base de datos del tenant.');
+            }
+
             Log::info('Usuario insertado en la base de datos del tenant, ID: ' . $usuarioTenant);
 
-            // Obtener el rol 'Admin' del tenant
-            $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Admin')->first();
+            // Obtener el rol 'Owner' del tenant
+            $adminRol = DB::connection('tenant')->table('roles')->where('nombre', 'Owner')->first();
 
             if ($adminRol) {
-                // Asignar el rol de 'Admin' al usuario en la base de datos del tenant
+                // Asignar el rol de 'Owner' al usuario en la base de datos del tenant
                 DB::connection('tenant')->table('usuario_rol')->insert([
                     'usuario_id' => $usuarioTenant,
                     'rol_id' => $adminRol->id,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-                Log::info('Rol "Admin" asignado al usuario en el tenant.');
+                Log::info('Rol "Owner" asignado al usuario en el tenant.');
             } else {
-                Log::warning('Rol "Admin" no encontrado en el tenant.');
+                throw new \Exception('Rol "Owner" no encontrado en el tenant.');
             }
+
+            DB::commit();
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Error en la creación del tenant: ' . $e->getMessage());
             return response()->json(['error' => 'Error en la creación del tenant'], 500);
         }
     }
-
-
-
-
 
 
     public function confirmarPago($id)
@@ -625,9 +637,6 @@ class UsuarioController extends Controller
     }
 
 
-
-
-
     public function rechazarPago($id)
     {
         // Buscar la factura correspondiente
@@ -717,14 +726,40 @@ class UsuarioController extends Controller
     //funcion para calcular las fechas de pago
     private function calcularFechasPago($factura)
     {
-        // Calcular fechas de pago y días de gracia
-        $fechasPago = $this->calcularFechasPago(now(), 30, 7);  // Ejemplo: 30 días de ciclo y 7 días de gracia
+        // Iniciar una transacción
+        DB::beginTransaction();
+        try {
+            // Definir el ciclo de facturación y los días de gracia
+            $cicloFacturacionDias = 30; // Ejemplo: 30 días de ciclo
+            $diasGracia = 7; // Ejemplo: 7 días de gracia
 
-        // Guardar las fechas calculadas en la base de datos si es necesario
-        $factura->update([
-            'proxima_fecha_pago' => $fechasPago['proxima_fecha_pago'],
-            'fecha_gracia' => $fechasPago['fecha_gracia']
-        ]);
+            // Calcular la próxima fecha de pago y la fecha de gracia
+            $proximaFechaPago = Carbon::now()->addDays($cicloFacturacionDias);
+            $fechaGracia = $proximaFechaPago->copy()->addDays($diasGracia);
+
+
+            // Guardar las fechas calculadas en la base de datos
+            $factura->update([
+                'proxima_fecha_pago' => $proximaFechaPago,
+                'fecha_gracia' => $fechaGracia
+            ]);
+
+            // Confirmar la transacción
+            DB::commit();
+            Log::info('Fechas de pago calculadas y guardadas correctamente', [
+                'factura_id' => $factura->id,
+                'proxima_fecha_pago' => $proximaFechaPago,
+                'fecha_gracia' => $fechaGracia
+            ]);
+        } catch (\Exception $e) {
+            // Revertir la transacción en caso de error
+            DB::rollBack();
+            Log::error('Error al calcular y guardar las fechas de pago', [
+                'factura_id' => $factura->id,
+                'error' => $e->getMessage()
+            ]);
+            throw $e; // Re-lanzar la excepción para manejarla en el contexto superior si es necesario
+        }
     }
 
     //funcion si el pago por paypal fue exitoso
@@ -779,77 +814,91 @@ class UsuarioController extends Controller
     /**
      * Editar la información del usuario.
      */
+
     public function update(Request $request, $id)
     {
-        $user = Auth::user(); // Obtiene el usuario autenticado
+        // Obtener el usuario autenticado
+        $user = Auth::user();
 
-        // Validar que se haya enviado el nombre de la base de datos
+        // Validar los datos de entrada
         $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string', // Se añade la validación del tenant
             'nombre' => 'sometimes|required|string',
             'apellido' => 'sometimes|required|string',
             'telefono' => 'sometimes|required|string',
             'cedula' => 'sometimes|required|string|max:10|unique:usuarios,cedula,' . $id,
             'correo_electronico' => 'sometimes|required|email|unique:usuarios,correo_electronico,' . $id,
             'contrasena' => 'sometimes|required|string|min:6',
-            'rol_id' => 'sometimes|exists:roles,id', // Ahora se usa rol_id
+            'rol_id' => 'sometimes|exists:roles,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Obtener el nombre de la base de datos del tenant desde el request
-        $tenantDatabase = $request->tenant_database;
-
-        // Establecer la conexión al tenant usando el nombre de la base de datos
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión al tenant está activa
-        if (!DB::connection('tenant')->getDatabaseName()) {
+        // Verificar que la conexión al tenant esté configurada correctamente
+        try {
+            $databaseName = DB::connection('tenant')->getDatabaseName();
+            if (!$databaseName) {
+                return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+            }
+        } catch (\Exception $e) {
+            Log::error('Error al conectar con la base de datos del tenant: ' . $e->getMessage());
             return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
         }
 
-        // Obtener el usuario desde la base de datos del tenant
+        // Buscar al usuario en la base de datos del tenant
         $usuario = DB::connection('tenant')->table('usuarios')->where('id', $id)->first();
 
         if (!$usuario) {
             return response()->json(['error' => 'Usuario no encontrado'], 404);
         }
 
-        // Verificar si el usuario tiene el permiso para actualizar otros usuarios
-        if (!$this->verificarPermiso('Puede actualizar usuarios') && $user->id !== $usuario->id) {
-            return response()->json(['error' => 'No tienes permisos para actualizar esta información'], 403);
+        // // Verificar permisos para actualizar
+        // if (!$this->verificarPermiso('Puede actualizar usuarios') && $user->id !== $usuario->id) {
+        //     return response()->json(['error' => 'No tienes permisos para actualizar esta información'], 403);
+        // }
+
+        // Preparar datos para actualizar
+        $requestData = $request->only(['nombre', 'apellido', 'telefono', 'cedula', 'correo_electronico']);
+        if ($request->has('contrasena')) {
+            $requestData['contrasena'] = bcrypt($request->contrasena);
         }
 
-        // Actualización del usuario
-        DB::beginTransaction();
+        // Actualizar la información en el tenant
+        DB::connection('tenant')->beginTransaction();
         try {
-            if ($this->verificarPermiso('Puede actualizar empleados')) {
-                // Solo permitir actualización de ciertos campos para empleados
-                $requestData = $request->only(['nombre', 'apellido', 'telefono', 'cedula', 'correo_electronico']);
-                if ($request->has('contrasena')) {
-                    $requestData['contrasena'] = $request->contrasena; // Almacenar sin encriptar
-                }
-                DB::connection('tenant')->table('usuarios')->where('id', $id)->update($requestData);
-            } else {
-                // Admin puede actualizar todos los campos
-                $requestData = $request->all();
-                if ($request->has('contrasena')) {
-                    $requestData['contrasena'] = $request->password;
-                }
-                DB::connection('tenant')->table('usuarios')->where('id', $id)->update($requestData);
-            }
+            DB::connection('tenant')->table('usuarios')->where('id', $id)->update($requestData);
 
-            DB::commit();
-            return response()->json(['message' => 'Usuario actualizado exitosamente'], 200);
+            DB::connection('tenant')->commit();
         } catch (\Exception $e) {
-            DB::rollBack();
+            DB::connection('tenant')->rollBack();
             Log::error('Error al actualizar usuario en el tenant: ' . $e->getMessage());
-            return response()->json(['error' => 'Error al actualizar usuario'], 500);
+            return response()->json(['error' => 'Error al actualizar usuario en el tenant'], 500);
         }
-    }
 
+        // Desconectar del tenant y reconectar a la base de datos principal
+        try {
+            DB::purge('tenant'); // Limpiar conexión activa del tenant
+            DB::reconnect('sqlite'); // Reconectar a la base de datos principal
+        } catch (\Exception $e) {
+            Log::error('Error al reconectar a la base de datos principal: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al reconectar a la base de datos principal'], 500);
+        }
+
+        // Actualizar la información en la base de datos principal
+        DB::connection('sqlite')->beginTransaction();
+        try {
+            DB::connection('sqlite')->table('usuarios')->where('id', $id)->update($requestData);
+
+            DB::connection('sqlite')->commit();
+        } catch (\Exception $e) {
+            DB::connection('sqlite')->rollBack();
+            Log::error('Error al actualizar usuario en la base de datos principal: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al actualizar usuario en la base de datos principal'], 500);
+        }
+
+        return response()->json(['message' => 'Usuario actualizado exitosamente'], 200);
+    }
 
 
     // recuperar contraseña
@@ -923,24 +972,63 @@ class UsuarioController extends Controller
             return response()->json(['message' => 'Token inválido o correo no coincidente.'], 400);
         }
 
-        // Actualizar la contraseña del usuario
-        $user = Usuario::where('correo_electronico', $request->correo_electronico)->first();
+        DB::beginTransaction();
 
-        if ($user) {
+        try {
+            // Actualizar la contraseña del usuario en la base de datos principal
+            $user = Usuario::where('correo_electronico', $request->correo_electronico)->first();
+
+            if (!$user) {
+                return response()->json(['message' => 'No se ha encontrado el usuario.'], 404);
+            }
+
             // Hashear la nueva contraseña
-            $user->password = Hash::make($request->password);
+            $hashedPassword = Hash::make($request->password);
+            $user->password = $hashedPassword;
             $user->save();
+
+            // Obtener el tenant asociado al usuario
+            $tenantRelation = DB::table('tenant_usuario')->where('usuario_id', $user->id)->first();
+
+            if ($tenantRelation) {
+                // Configurar la conexión al tenant
+                $tenant = Tenant::find($tenantRelation->tenant_id);
+                if (!$tenant) {
+                    throw new \Exception('No se encontró el tenant asociado.');
+                }
+
+                $databasePath = $tenant->data['database_path'];
+                config(['database.connections.tenant' => [
+                    'driver' => 'sqlite',
+                    'database' => $databasePath,
+                    'prefix' => '',
+                    'foreign_key_constraints' => true,
+                ]]);
+
+                // Cambiar la conexión al tenant
+                DB::purge('tenant');
+                DB::reconnect('tenant');
+
+                // Actualizar la contraseña del usuario en la base de datos del tenant
+                DB::connection('tenant')->table('usuarios')
+                    ->where('correo_electronico', $request->correo_electronico)
+                    ->update(['password' => $hashedPassword]);
+
+                Log::info('Contraseña actualizada en el tenant: ' . $databasePath);
+            }
 
             // Eliminar el token una vez la contraseña ha sido reseteada exitosamente
             DB::table('password_reset_tokens')->where('email', $request->correo_electronico)->delete();
 
+            DB::commit();
+
             return response()->json(['message' => 'Su contraseña ha sido cambiada exitosamente.'], 200);
-        } else {
-            return response()->json(['message' => 'No se ha encontrado el usuario.'], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al cambiar la contraseña: ' . $e->getMessage());
+            return response()->json(['message' => 'Error al cambiar la contraseña. Por favor, inténtelo de nuevo.'], 500);
         }
     }
-
-
 
     public function requestDemo(Request $request)
     {
@@ -986,9 +1074,6 @@ class UsuarioController extends Controller
             return response()->json(['errors' => 'Hubo un error al enviar la solicitud de demo. Por favor, inténtelo de nuevo.'], 500);
         }
     }
-
-
-
 
     // Aprobación de demo
     public function approveDemo(Request $request)
@@ -1067,8 +1152,6 @@ class UsuarioController extends Controller
     }
 
 
-
-
     //Negar demo
     public function rejectDemo(Request $request)
     {
@@ -1107,252 +1190,38 @@ class UsuarioController extends Controller
     //Eliminar usuario
     public function destroy(Request $request, $id)
     {
-        // Validar que se haya enviado el nombre de la base de datos
         $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
+            'tenant_database' => 'required|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Obtener el nombre de la base de datos del tenant desde el request
         $tenantDatabase = $request->tenant_database;
 
-        // Establecer la conexión al tenant usando el nombre de la base de datos
         $this->setTenantConnection($tenantDatabase);
 
-        // Verificar que la conexión al tenant está activa
         if (!DB::connection('tenant')->getDatabaseName()) {
             return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
         }
 
-        // Verificar si el usuario tiene el permiso para borrar usuarios
         if (!$this->verificarPermiso('Puede borrar usuarios')) {
             return response()->json(['error' => 'No tienes permiso para eliminar usuarios'], 403);
         }
 
-        // Buscar el usuario por ID en la base de datos del tenant
         $usuario = DB::connection('tenant')->table('usuarios')->find($id);
 
         if (!$usuario) {
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
-        // Borrado lógico del usuario (soft delete)
-        DB::connection('tenant')->table('usuarios')->where('id', $id)->delete();
-
-        return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
-    }
-
-
-    //Funcion para listar usuarios paginacion(Tenant)
-    public function paginatedIndex(Request $request)
-    {
-        // Validar que se haya enviado el nombre de la base de datos
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        try {
+            DB::connection('tenant')->table('usuarios')->where('id', $id)->update(['deleted_at' => now()]);
+            return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
+        } catch (\Exception $e) {
+            Log::error('Error al eliminar usuario en el tenant: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al eliminar usuario'], 500);
         }
-
-        // Obtener el nombre de la base de datos del tenant desde el request
-        $tenantDatabase = $request->tenant_database;
-
-        // Establecer la conexión al tenant usando el nombre de la base de datos
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión al tenant está activa
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Verificar si el usuario está autenticado
-        $authUser = Auth::user();
-        if (!$authUser) {
-            return response()->json(['errors' => 'No estás autenticado.'], 401);
-        }
-
-        // Verificar si el usuario tiene el rol de empleado y denegar acceso
-        if ($this->verificarRol('Empleado')) {
-            return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
-        }
-
-        // Validación de filtros en la solicitud
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'sometimes|string|max:255',
-            'apellido' => 'sometimes|string|max:255',
-            'telefono' => 'sometimes|string|max:255',
-            'cedula' => 'sometimes|string|max:10',
-            'correo_electronico' => 'sometimes|string|max:255',
-            'rol' => 'sometimes|in:Empleado,Admin,Demo,Owner',
-            'deleted_at' => 'sometimes|boolean', // Usar booleano para filtrar activos/inactivos
-            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Obtener los datos validados
-        $validatedData = $validator->validated();
-
-        // Construir la consulta en la base de datos del tenant
-        $query = DB::connection('tenant')->table('usuarios');
-
-        if (isset($validatedData['nombre'])) {
-            $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
-        }
-
-        if (isset($validatedData['apellido'])) {
-            $query->where('apellido', 'like', '%' . $validatedData['apellido'] . '%');
-        }
-
-        if (isset($validatedData['telefono'])) {
-            $query->where('telefono', 'like', '%' . $validatedData['telefono'] . '%');
-        }
-
-        if (isset($validatedData['cedula'])) {
-            $query->where('cedula', 'like', '%' . $validatedData['cedula'] . '%');
-        }
-
-        if (isset($validatedData['correo_electronico'])) {
-            $query->where('correo_electronico', 'like', '%' . $validatedData['correo_electronico'] . '%');
-        }
-
-        if (isset($validatedData['rol'])) {
-            $query->where('rol', $validatedData['rol']);
-        }
-
-        // Filtrar por deleted_at
-        if (isset($validatedData['deleted_at'])) {
-            if ($validatedData['deleted_at']) {
-                $query->onlyTrashed(); // Solo usuarios eliminados
-            } else {
-                $query->withTrashed(); // Todos los usuarios, incluidos los eliminados
-            }
-        }
-
-        // Limitar la información basada en el rol del usuario autenticado
-        if ($this->verificarRol('owner')) {
-            $query->whereHas('owners', function ($q) use ($authUser) {
-                $q->where('owner_id', $authUser->id);
-            });
-        }
-
-        // Obtener el número de resultados por página, por defecto 15
-        $perPage = $validatedData['per_page'] ?? 15;
-
-        // Obtener los resultados paginados
-        $usuarios = $query->paginate($perPage);
-
-        return response()->json($usuarios);
-    }
-
-    //Funcion para paginar (Database main)
-    public function paginatedIndexAdmin(Request $request)
-    {
-        // Validar que se haya enviado el nombre de la base de datos
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string', // Validar que el nombre de la base de datos del tenant se haya enviado
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Obtener el nombre de la base de datos del tenant desde el request
-        $tenantDatabase = $request->tenant_database;
-
-        // Establecer la conexión al tenant usando el nombre de la base de datos
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión al tenant está activa
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Verificar si el usuario está autenticado
-        $authUser = Auth::user();
-        if (!$authUser) {
-            return response()->json(['errors' => 'No estás autenticado.'], 401);
-        }
-
-        // Verificar si el usuario tiene el rol de empleado y denegar acceso
-        if ($this->verificarRol('Empleado')) {
-            return response()->json(['errors' => 'No tienes permiso para acceder a esta información.'], 403);
-        }
-
-        // Validación de filtros en la solicitud
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'sometimes|string|max:255',
-            'apellido' => 'sometimes|string|max:255',
-            'telefono' => 'sometimes|string|max:255',
-            'cedula' => 'sometimes|string|max:10',
-            'correo_electronico' => 'sometimes|string|max:255',
-            'rol' => 'sometimes|in:Empleado,Admin,Demo,Owner',
-            'deleted_at' => 'sometimes|boolean', // Usar booleano para filtrar activos/inactivos
-            'per_page' => 'sometimes|integer|min:1|max:100', // Limitar el número de resultados por página
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Obtener los datos validados
-        $validatedData = $validator->validated();
-
-        // Construir la consulta en la base de datos del tenant
-        $query = DB::connection('tenant')->table('usuarios');
-
-        if (isset($validatedData['nombre'])) {
-            $query->where('nombre', 'like', '%' . $validatedData['nombre'] . '%');
-        }
-
-        if (isset($validatedData['apellido'])) {
-            $query->where('apellido', 'like', '%' . $validatedData['apellido'] . '%');
-        }
-
-        if (isset($validatedData['telefono'])) {
-            $query->where('telefono', 'like', '%' . $validatedData['telefono'] . '%');
-        }
-
-        if (isset($validatedData['cedula'])) {
-            $query->where('cedula', 'like', '%' . $validatedData['cedula'] . '%');
-        }
-
-        if (isset($validatedData['correo_electronico'])) {
-            $query->where('correo_electronico', 'like', '%' . $validatedData['correo_electronico'] . '%');
-        }
-
-        if (isset($validatedData['rol'])) {
-            $query->where('rol', $validatedData['rol']);
-        }
-
-        // Filtrar por deleted_at
-        if (isset($validatedData['deleted_at'])) {
-            if ($validatedData['deleted_at']) {
-                $query->onlyTrashed(); // Solo usuarios eliminados
-            } else {
-                $query->withTrashed(); // Todos los usuarios, incluidos los eliminados
-            }
-        }
-
-        // Limitar la información basada en el rol del usuario autenticado
-        if ($this->verificarRol('owner')) {
-            $query->whereHas('owners', function ($q) use ($authUser) {
-                $q->where('owner_id', $authUser->id);
-            });
-        }
-
-        // Obtener el número de resultados por página, por defecto 15
-        $perPage = $validatedData['per_page'] ?? 15;
-
-        // Obtener los resultados paginados
-        $usuarios = $query->paginate($perPage);
-
-        return response()->json($usuarios);
     }
 }
