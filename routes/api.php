@@ -23,7 +23,7 @@ use App\Http\Controllers\ExportarController;
 
 
 //Agrupar por middleware perzonalizado
-Route::middleware('TenantAuthPermissions')->group(function () {
+Route::middleware('TenantAuthPermissions')->group(function () { 
 
     //Rutas de exportacion de datos
     Route::get('exportar/excel', [ExportarController::class, 'exportarExcel']);

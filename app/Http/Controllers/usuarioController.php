@@ -189,12 +189,18 @@ class UsuarioController extends Controller
             $rol = Rol::find($request->rol_id);
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
-                $this->handleOwnerRegistration($request, $usuario);
-            }
-            //elseif ($rol->nombre === 'Empleado') {
+                if ($request->metodo_pago == 1) { // Pago por PayPal
 
-            //     $this->handleEmpleadoRegistration($request, $usuario);
-            // }
+                    $paymentResult = $this->processPaypalPayment($request, $usuario);
+                    // Detén la ejecución si se genera el enlace de redirección
+                    if ($paymentResult->status() === 200) {
+                        DB::commit(); // Commit temprano para garantizar persistencia
+                        return $paymentResult;
+                    }
+                } elseif ($request->metodo_pago == 2) {
+                    $this->processBankTransfer($request, $usuario);
+                }
+            }
             DB::commit();
 
             return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
@@ -263,8 +269,8 @@ class UsuarioController extends Controller
                 ->where('usuario_rol.rol_id', 2)
                 ->select('usuarios.correo_electronico')
                 ->first();
-    
-                
+
+
             return response()->json(['message' => 'Usuario creado exitosamente'], 201);
         } catch (\Exception $e) {
             // Rollback si algo falla
@@ -289,18 +295,6 @@ class UsuarioController extends Controller
     }
 
 
-    //Funcion encargada del registro de owner
-    protected function handleOwnerRegistration($request, $usuario)
-    {
-        if ($request->metodo_pago == 1) {
-
-            $this->processPaypalPayment($request, $usuario);
-        } elseif ($request->metodo_pago == 2) { // Transferencia bancaria
-
-            $this->processBankTransfer($request, $usuario);
-        }
-    }
-
     //Funcion encargada del registro de empleado
     protected function handleEmpleadoRegistration($request, $usuario)
     {
@@ -314,12 +308,19 @@ class UsuarioController extends Controller
     //Funcion para procesar el pago por paypal
     protected function processPaypalPayment($request, $usuario)
     {
-        // Lógica para procesar pago por PayPal
         $paymentResult = $this->processPayment($request->id_plan, $usuario);
         if (!$paymentResult['status']) {
             throw new \Exception('Error en el proceso de pago.');
         }
-        return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
+
+        // Cambiar estado del usuario a "deshabilitado"
+        $usuario->estado = 'deshabilitado';
+        $usuario->save();
+
+        return response()->json([
+            'message' => 'Redirigir a PayPal para completar el pago.',
+            'redirect_url' => $paymentResult['redirect_url'],
+        ], 200);
     }
 
     //Funcion para procesar el pago por transferencia bancaria
@@ -659,7 +660,7 @@ class UsuarioController extends Controller
     }
 
 
-    //Funcion para procesar pago por 
+    //Funcion para procesar pago por  paypal
     public function processPayment($planId, $usuario)
     {
         $plan = Planes::find($planId);
@@ -704,6 +705,11 @@ class UsuarioController extends Controller
 
                 // Crear la factura y el detalle de la factura
                 $factura = $this->crearFacturaYDetalle($usuario, $plan, 1, "Pago suscripción por PayPal");
+                $factura = $this->crearFacturaYDetalle($usuario, $plan, 1, "Pago suscripción por PayPal");
+
+                // Guardar el `order_id_paypal` en la factura
+                $factura->order_id_paypal = $orderIdPayPal;
+                $factura->save();
 
 
                 // Redirigir al usuario para aprobar el pago
@@ -772,7 +778,9 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Usuario no encontrado'], 404);
         }
 
-        // Buscar la factura pendiente del usuario
+
+
+        // Verifica el estado de la factura y realiza acciones
         $factura = Factura::where('usuario_id', $usuario->id)
             ->where('estado', 'pendiente')
             ->whereNotNull('order_id_paypal')
@@ -782,20 +790,29 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Factura no encontrada'], 404);
         }
 
-        // Actualizar el estado de la factura y la fecha de pago
-        $factura->estado = 'pagado';
-        $factura->fecha_pago = now();
-        $factura->save();
+        // Actualiza el estado del pago y crea el tenant
+        DB::beginTransaction();
+        try {
+            $factura->estado = 'pagado';
+            $factura->fecha_pago = now();
+            $factura->save();
 
-        // Actualizar el estado del usuario a 'habilitado'
-        $usuario->estado = 'habilitado';
-        $usuario->save();
+            // Cambia el estado del usuario
+            $usuario->estado = 'habilitado';
+            $usuario->save();
 
-        // Enviar correo al owner
-        Mail::to($usuario->correo_electronico)->send(new OwnerMail($usuario));
+            // Lógica para crear el tenant después del pago exitoso
+            $this->createTenantForOwner($usuario);
 
-        return response()->json(['status' => 'success', 'message' => 'Suscripción activada correctamente']);
+            DB::commit();
+            return response()->json(['status' => 'success', 'message' => 'Suscripción activada correctamente']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al procesar pago exitoso: ' . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Error al procesar el pago'], 500);
+        }
     }
+
 
 
     //Funciones para procesar pagos con paypal
