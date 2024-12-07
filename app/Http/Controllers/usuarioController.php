@@ -778,8 +778,6 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Usuario no encontrado'], 404);
         }
 
-
-
         // Verifica el estado de la factura y realiza acciones
         $factura = Factura::where('usuario_id', $usuario->id)
             ->where('estado', 'pendiente')
@@ -814,14 +812,13 @@ class UsuarioController extends Controller
     }
 
 
-
-    //Funciones para procesar pagos con paypal
-
+    //Funcion para procesar pagos con paypal
     public function paymentCancel()
     {
         return response()->json(['status' => 'error', 'message' => 'Pago cancelado'], 400);
     }
 
+    //Funcion para procesar pagos fallidos
     public function paymentFailure()
     {
         return response()->json(['status' => 'error', 'message' => 'Error en el pago. Inténtelo de nuevo.'], 500);
