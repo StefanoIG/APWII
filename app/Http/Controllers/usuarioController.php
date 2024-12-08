@@ -189,7 +189,7 @@ class UsuarioController extends Controller
             $rol = Rol::find($request->rol_id);
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
-                if ($request->metodo_pago == 1) { // Pago por PayPal
+                if ($request->metodo_pago == 2) { // Pago por PayPal
 
                     $paymentResult = $this->processPaypalPayment($request, $usuario);
                     // Detén la ejecución si se genera el enlace de redirección
@@ -197,7 +197,7 @@ class UsuarioController extends Controller
                         DB::commit(); // Commit temprano para garantizar persistencia
                         return $paymentResult;
                     }
-                } elseif ($request->metodo_pago == 2) {
+                } elseif ($request->metodo_pago == 1) {// Pago por transferencia bancaria
                     $this->processBankTransfer($request, $usuario);
                 }
             }
