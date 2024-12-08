@@ -29,6 +29,10 @@ Route::middleware('TenantAuthPermissions')->group(function () {
     Route::get('exportar/excel', [ExportarController::class, 'exportarExcel']);
     Route::get('exportar/sql', [ExportarController::class, 'exportarSQL']);
 
+
+    //Ruta de registro empleado
+    Route::post('/register/employee', [UsuarioController::class, 'registerForEmployee']);
+
     //rutas de usuarios
     Route::get('/usuarios', [UsuarioController::class, 'index']);  // Ruta para listar usuarios
     Route::get('/usuarios/{id}', [UsuarioController::class, 'show']);  // Ruta para mostrar un usuario específico
@@ -109,8 +113,7 @@ Route::middleware('TenantAuthPermissions')->group(function () {
     //Rutas para Rol a Usuarios (UsuarioRolController)
     Route::post('/asignar/rol', [UsuarioRolController::class, 'store']);
 
-    //Ruta de registro empleado
-    Route::post('/register/employee', [UsuarioController::class, 'registerForEmployee']);
+
 
     //Ruta para ver las facturas
     Route::get('/facturas', [FacturaController::class, 'index']);

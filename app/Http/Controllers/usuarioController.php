@@ -209,24 +209,45 @@ class UsuarioController extends Controller
      * Crear un nuevo usuario de tipo Empleado
      */
     public function registerForEmployee(Request $request)
-    {
-        //Establecer la conexion al tenant
-        $this->setTenantConnection($request);
+{
+    // Validar los datos de entrada
+    $validator = Validator::make($request->all(), [
+        'nombre' => 'required|string|max:255',
+        'apellido' => 'required|string|max:255',
+        'telefono' => 'required|string|max:20',
+        'cedula' => 'required|string|max:10|unique:usuarios,cedula',
+        'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+        'password' => 'required|string|min:6',
+        'rol_id' => 'required|exists:roles,id', // Validar que el rol existe
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    DB::beginTransaction();
+    try {
+        // Crear el usuario en la base de datos principal
+        $usuario = $this->createUser($request);
+
+        // Asignar el rol al usuario (a través de la tabla usuario_rol)
+        $usuario->roles()->attach($request->rol_id);
+
+        // Obtener el nombre de la base de datos del tenant desde el encabezado de la solicitud
+        $tenantDatabase = $request->header('X-Tenant');
 
         // Validar que se haya enviado el nombre de la base de datos
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'required|string|max:255',
-            'apellido' => 'required|string|max:255',
-            'telefono' => 'required|string|max:20',
-            'cedula' => 'required|string|max:10|unique:usuarios,cedula',
-            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
-            'password' => 'required|string|min:6',
-            'rol_id' => 'required|exists:roles,id', // Validar que el rol existe
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        if (!$tenantDatabase) {
+            return response()->json(['error' => 'Nombre de la base de datos del tenant no proporcionado'], 400);
         }
+
+        // Asegúrate de que el nombre de la base de datos no incluya la extensión .sqlite
+        if (Str::endsWith($tenantDatabase, '.sqlite')) {
+            $tenantDatabase = Str::replaceLast('.sqlite', '', $tenantDatabase);
+        }
+
+        // Establecer la conexión al tenant
+        $this->setTenantConnection($tenantDatabase);
 
         // Verificar que la conexión al tenant está activa
         if (!DB::connection('tenant')->getDatabaseName()) {
@@ -236,43 +257,51 @@ class UsuarioController extends Controller
         // Obtener los roles permitidos en el tenant (excluir 'Admin' y 'Owner')
         $allowedRoles = DB::connection('tenant')->table('roles')->whereNotIn('nombre', ['Admin', 'Owner'])->pluck('id');
 
-        // Comenzar transacción
-        DB::beginTransaction();
-        try {
-            // Verificar si el rol que intenta asignar está permitido
-            if (!in_array($request->rol_id, $allowedRoles->toArray())) {
-                return response()->json(['error' => 'Rol no permitido'], 403);
-            }
-
-            // Crear el usuario en la base de datos del tenant reutilizando la funcion createuser
-            $usuario = $this->createUser($request);
-
-
-            // Asignar el rol al usuario (a través de la tabla usuario_rol)
-            DB::connection('tenant')->table('usuario_rol')->insert([
-                'usuario_id' => $usuario,
-                'rol_id' => 1,
-            ]);
-
-            // Commit de la transacción
-            DB::commit();
-
-            //Enviar correo al Owner del tenant
-            $owner = DB::connection('tenant')->table('usuarios')
-                ->join('usuario_rol', 'usuarios.id', '=', 'usuario_rol.usuario_id')
-                ->where('usuario_rol.rol_id', 2)
-                ->select('usuarios.correo_electronico')
-                ->first();
-    
-                
-            return response()->json(['message' => 'Usuario creado exitosamente'], 201);
-        } catch (\Exception $e) {
-            // Rollback si algo falla
-            DB::rollBack();
-            Log::error('Error al crear usuario en el tenant: ' . $e->getMessage());
-            return response()->json(['errors' => 'Error al crear usuario'], 500);
+        // Verificar si el rol que intenta asignar está permitido
+        if (!in_array($request->rol_id, $allowedRoles->toArray())) {
+            return response()->json(['error' => 'Rol no permitido'], 403);
         }
+
+        // Crear el usuario en la base de datos del tenant
+        $usuarioTenantId = DB::connection('tenant')->table('usuarios')->insertGetId([
+            'nombre' => $usuario->nombre,
+            'apellido' => $usuario->apellido,
+            'telefono' => $usuario->telefono,
+            'cedula' => $usuario->cedula,
+            'correo_electronico' => $usuario->correo_electronico,
+            'password' => $usuario->password, // Asume que ya está encriptada
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Asignar el rol al usuario en la base de datos del tenant (a través de la tabla usuario_rol)
+        DB::connection('tenant')->table('usuario_rol')->insert([
+            'usuario_id' => $usuarioTenantId,
+            'rol_id' => $request->rol_id,
+        ]);
+
+        // Commit de la transacción
+        DB::commit();
+
+        // Enviar correo al Owner del tenant
+        $owner = DB::connection('tenant')->table('usuarios')
+            ->join('usuario_rol', 'usuarios.id', '=', 'usuario_rol.usuario_id')
+            ->where('usuario_rol.rol_id', 2) // Asumiendo que el rol_id 2 es el Owner
+            ->select('usuarios.correo_electronico')
+            ->first();
+
+        if ($owner) {
+            Mail::to($owner->correo_electronico)->send(new WelcomeMail($usuario));
+        }
+
+        return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
+    } catch (\Exception $e) {
+        // Rollback si algo falla
+        DB::rollBack();
+        Log::error('Error al crear usuario en el tenant: ' . $e->getMessage());
+        return response()->json(['errors' => 'Error al crear usuario'], 500);
     }
+}
 
 
     //Funcion para crear usuario
