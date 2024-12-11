@@ -211,6 +211,42 @@ class UsuarioController extends Controller
         }
     }
 
+    //Funcion de registro para administradores
+    public function registerAdmins(Request $request){
+        // Validación de datos
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:255',
+            'apellido' => 'required|string|max:255',
+            'telefono' => 'required|string|max:20',
+            'cedula' => 'required|string|max:10|unique:usuarios,cedula',
+            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+            'password' => 'required|string|min:6',
+            'rol_id' => 'required|exists:roles,id', // Asegúrate de que se valida que el rol existe
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Crear el usuario
+            $usuario = $this->createUser($request);
+
+            // Asignar el rol al usuario (a través de la tabla usuario_rol)
+            $usuario->roles()->attach($request->rol_id);
+
+            DB::commit();
+
+            return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al crear usuario: ' . $e->getMessage());
+            return response()->json(['errors' => 'Error al crear usuario'], 500);
+        }
+    }
+
+    
 
     //Funcion para crear un usuario tipo empleado
     public function registerForEmployee(Request $request)
