@@ -19,7 +19,6 @@ class Etiqueta extends Model
         'descripcion',
         'categoria',
         'prioridad',
-        'isActive',
     ];
 
     // Relación muchos a muchos con Producto

@@ -21,7 +21,6 @@ class Proveedor extends Model
         "telefono",
         "Cuidad",
         "Activo",
-        "isActive",
         "sitio_id"
     ];
 

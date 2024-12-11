@@ -18,7 +18,6 @@ return new class extends Migration
             $table->text('descripcion')->nullable();
             $table->string('categoria');
             $table->enum('prioridad', ['alta', 'media', 'baja']);
-            $table->boolean('isActive')->default(true);
             $table->softDeletes();
             $table->timestamps();
         });

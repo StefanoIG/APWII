@@ -21,7 +21,6 @@ return new class extends Migration
             $table->date('fecha_caducidad')->nullable();
             $table->integer('cantidad');
             $table->boolean('expirable')->default(false);
-            $table->boolean('isActive')->default(true);
             $table->timestamps();
             $table->softDeletes();
 

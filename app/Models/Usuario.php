@@ -6,9 +6,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Usuario extends Authenticatable implements JWTSubject
 {
+    use SoftDeletes;
     use Notifiable;
 
     protected $table = 'usuarios';  // Especifica el nombre de la tabla si es diferente de la convención singular del nombre del modelo

@@ -18,7 +18,6 @@ class CreateComprobanteTable extends Migration
             $table->unsignedBigInteger('id_producto'); // Clave foránea
             $table->integer('cantidad');
             $table->integer('precio_total');
-            $table->boolean('isActive')->default(true);
             $table->timestamps();
             $table->softDeletes(); // Agregar columna para soft deletes
             // Definir claves foráneas

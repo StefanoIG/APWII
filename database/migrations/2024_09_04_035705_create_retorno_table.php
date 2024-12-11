@@ -19,7 +19,6 @@ class CreateRetornoTable extends Migration
             $table->integer('cantidad');
             $table->text('motivo_retorno');
             $table->text('estado_retorno');
-            $table->boolean('isActive')->default(true);
             $table->timestamps();
             $table->softDeletes(); // Agregar columna para soft deletes
 

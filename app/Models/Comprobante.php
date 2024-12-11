@@ -3,10 +3,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Comprobante extends Model
 {
     use HasFactory;
+    use SoftDeletes;
     
     // Tabla asociada al modelo
     protected $table = 'comprobante';
@@ -21,7 +23,6 @@ class Comprobante extends Model
         'id_producto',
         'cantidad',
         'precio_total',
-        'isActive'
     ];
 
     // Relación con Usuario

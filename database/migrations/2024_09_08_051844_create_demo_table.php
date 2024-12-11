@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->string('email')->unique();
             $table->unsignedBigInteger('usuario_id')->nullable(); // Relación con la tabla usuarios
-            $table->boolean('isActive')->default(false);
             $table->softDeletes(); // Agregar columna para soft deletes
             $table->timestamps(); // Corrección de duplicado
         });

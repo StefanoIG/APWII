@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('tipo_producto');
             $table->string('descripcion_producto');
             $table->decimal('precio');
-            $table->boolean('iSActive')->default(true);
             $table->softDeletes();
             $table->timestamps();
         });

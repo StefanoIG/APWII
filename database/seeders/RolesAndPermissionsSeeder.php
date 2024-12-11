@@ -20,6 +20,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // Lista de todos los permisos disponibles
         $permisos = [
+            'Puede ver productos',
             'Puede registrar usuarios',
             'Aprobar demo',
             'Puede crear productos',
@@ -68,6 +69,7 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // Permisos globales que se repiten entre roles
         $permisosGlobales = [
+            'Puede ver productos',
             'Puede crear productos',
             'Puede actualizar productos',
             'Puede crear lotes',
@@ -109,6 +111,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 case 'Owner':
                     $this->asignarPermisos($rol, array_merge($permisosGlobales, [
                         'Puede registrar usuarios',
+                        'Puede ver productos',
                         'Puede actualizar empleados de sus sitios',
                         'Puede eliminar empleados de sus sitios',
                         'Puede crear proveedores',

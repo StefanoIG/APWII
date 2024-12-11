@@ -26,7 +26,6 @@ class Lote extends Model
         'cantidad',
         'expirable',
         'codigo_barra',
-        'isActive'
     ];
 
     // Relación con Producto

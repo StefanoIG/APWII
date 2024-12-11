@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('demo', function (Blueprint $table) {
-            $table->timestamp('demo_expiry_date')->nullable()->after('isActive');
+
         });
     }
 

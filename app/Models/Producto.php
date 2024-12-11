@@ -18,7 +18,6 @@ class Producto extends Model
         'tipo_producto',
         'descripcion_producto',
         'precio',
-        'isActive',
         'codigo_barra'
     ];
 

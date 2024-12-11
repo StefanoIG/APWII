@@ -4,9 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Retorno extends Model
 {
+    use SoftDeletes;
     use HasFactory;
 
     // Tabla asociada al modelo
@@ -20,7 +22,6 @@ class Retorno extends Model
         'cantidad',
         'motivo_retorno',
         'estado_retorno',
-        'isActive'
     ];
 
     // Relación con Comprobante

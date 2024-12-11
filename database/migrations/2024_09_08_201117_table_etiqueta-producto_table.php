@@ -17,6 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('producto_id');
             $table->unsignedBigInteger('etiqueta_id');
             $table->timestamps();
+            $table->softDeletes();
         
             // Llaves foráneas
             $table->foreign('producto_id')->references('id_producto')->on('producto')->onDelete('cascade');
