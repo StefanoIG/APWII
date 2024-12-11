@@ -16,7 +16,6 @@ class Demo extends Model
     protected $fillable = [
         'email',
         'usuario_id',
-        'isActive', // Añadido para hacer fillable
     ];
 
     public function usuario()

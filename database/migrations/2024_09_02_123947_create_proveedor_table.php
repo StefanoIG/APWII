@@ -19,7 +19,6 @@ return new class extends Migration
             $table->string("telefono", 255);
             $table->string("Cuidad", 255);
             $table->boolean("Activo",)->default(true);
-            $table->boolean('isActive')->default(true);
             $table->softDeletes(); // Agregar columna para soft deletes
             $table->timestamps();
 

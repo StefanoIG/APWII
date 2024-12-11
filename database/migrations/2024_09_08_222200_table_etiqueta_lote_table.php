@@ -16,6 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('lote_id');
             $table->unsignedBigInteger('etiqueta_id');
             $table->timestamps();
+            $table->softDeletes();
 
             // Definir las llaves foráneas
             $table->foreign('lote_id')->references('id_lote')->on('lote')->onDelete('cascade');
