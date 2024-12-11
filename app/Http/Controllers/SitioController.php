@@ -121,6 +121,10 @@ class SitioController extends Controller
 
         $user = Auth::user();
 
+        if (!$this->verificarPermiso('Puede ver informacion de todos los sitios')) {
+            return response()->json(['error' => 'No tienes permiso para ver todos los sitios'], 403);
+        }
+
         if ($this->verificarRol('Owner')) {
             $sitios = DB::connection('tenant')->table('sitio')->paginate(10);
         } else {
@@ -137,9 +141,9 @@ class SitioController extends Controller
     {
         $this->setTenantConnection($request);
 
-        // if (!$this->verificarPermiso('Ver sitios')) {
-        //     return response()->json(['error' => 'No tienes permiso para ver este sitio'], 403);
-        // }
+        if (!$this->verificarPermiso('Puede ver informacion de todos los sitios')) {
+            return response()->json(['error' => 'No tienes permiso para ver este sitio'], 403);
+        }
 
         $sitio = DB::connection('tenant')->table('sitio')->where('id_sitio', $id)->first();
 
@@ -167,9 +171,9 @@ class SitioController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // if (!$this->verificarPermiso('Editar sitios')) {
-        //     return response()->json(['error' => 'No tienes permiso para editar este sitio'], 403);
-        // }
+        if (!$this->verificarPermiso('Puede actualizar sitios')) {
+            return response()->json(['error' => 'No tienes permiso para actualizar este sitio'], 403);
+        }
 
         try {
             DB::connection('tenant')
@@ -191,9 +195,9 @@ class SitioController extends Controller
     {
         $this->setTenantConnection($request);
 
-        // if (!$this->verificarPermiso('Eliminar sitios')) {
-        //     return response()->json(['error' => 'No tienes permiso para eliminar este sitio'], 403);
-        // }
+        if (!$this->verificarPermiso('Puede eliminar sitios')) {
+            return response()->json(['error' => 'No tienes permiso para eliminar este sitio'], 403);
+        }
 
         try {
             DB::connection('tenant')->table('sitio')->where('id_sitio', $id)->delete();

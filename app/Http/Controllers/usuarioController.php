@@ -80,7 +80,7 @@ class UsuarioController extends Controller
         // Configurar la conexión a la base de datos del tenant
         config(['database.connections.tenant' => [
             'driver' => 'sqlite',
-            'database' => database_path('tenants/' . $databaseName . '.sqlite'),
+            'database' => database_path('tenants/' . $databaseName),
             'prefix' => '',
             'foreign_key_constraints' => true,
         ]]);
@@ -189,12 +189,18 @@ class UsuarioController extends Controller
             $rol = Rol::find($request->rol_id);
             // Ejecutar lógica basada en el rol
             if ($rol->nombre === 'Owner') {
-                $this->handleOwnerRegistration($request, $usuario);
-            }
-            //elseif ($rol->nombre === 'Empleado') {
+                if ($request->metodo_pago == 2) { // Pago por PayPal
 
-            //     $this->handleEmpleadoRegistration($request, $usuario);
-            // }
+                    $paymentResult = $this->processPaypalPayment($request, $usuario);
+                    // Detén la ejecución si se genera el enlace de redirección
+                    if ($paymentResult->status() === 200) {
+                        DB::commit(); // Commit temprano para garantizar persistencia
+                        return $paymentResult;
+                    }
+                } elseif ($request->metodo_pago == 1) { // Pago por transferencia bancaria
+                    $this->processBankTransfer($request, $usuario);
+                }
+            }
             DB::commit();
 
             return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
@@ -205,103 +211,108 @@ class UsuarioController extends Controller
         }
     }
 
-    /**
-     * Crear un nuevo usuario de tipo Empleado
-     */
+
+    //Funcion para crear un usuario tipo empleado
     public function registerForEmployee(Request $request)
-{
-    // Validar los datos de entrada
-    $validator = Validator::make($request->all(), [
-        'nombre' => 'required|string|max:255',
-        'apellido' => 'required|string|max:255',
-        'telefono' => 'required|string|max:20',
-        'cedula' => 'required|string|max:10|unique:usuarios,cedula',
-        'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
-        'password' => 'required|string|min:6',
-        'rol_id' => 'required|exists:roles,id', // Validar que el rol existe
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['errors' => $validator->errors()], 422);
-    }
-
-    DB::beginTransaction();
-    try {
-        // Crear el usuario en la base de datos principal
-        $usuario = $this->createUser($request);
-
-        // Asignar el rol al usuario (a través de la tabla usuario_rol)
-        $usuario->roles()->attach($request->rol_id);
-
-        // Obtener el nombre de la base de datos del tenant desde el encabezado de la solicitud
-        $tenantDatabase = $request->header('X-Tenant');
-
-        // Validar que se haya enviado el nombre de la base de datos
-        if (!$tenantDatabase) {
-            return response()->json(['error' => 'Nombre de la base de datos del tenant no proporcionado'], 400);
-        }
-
-        // Asegúrate de que el nombre de la base de datos no incluya la extensión .sqlite
-        if (Str::endsWith($tenantDatabase, '.sqlite')) {
-            $tenantDatabase = Str::replaceLast('.sqlite', '', $tenantDatabase);
-        }
-
-        // Establecer la conexión al tenant
-        $this->setTenantConnection($tenantDatabase);
-
-        // Verificar que la conexión al tenant está activa
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
-
-        // Obtener los roles permitidos en el tenant (excluir 'Admin' y 'Owner')
-        $allowedRoles = DB::connection('tenant')->table('roles')->whereNotIn('nombre', ['Admin', 'Owner'])->pluck('id');
-
-        // Verificar si el rol que intenta asignar está permitido
-        if (!in_array($request->rol_id, $allowedRoles->toArray())) {
-            return response()->json(['error' => 'Rol no permitido'], 403);
-        }
-
-        // Crear el usuario en la base de datos del tenant
-        $usuarioTenantId = DB::connection('tenant')->table('usuarios')->insertGetId([
-            'nombre' => $usuario->nombre,
-            'apellido' => $usuario->apellido,
-            'telefono' => $usuario->telefono,
-            'cedula' => $usuario->cedula,
-            'correo_electronico' => $usuario->correo_electronico,
-            'password' => $usuario->password, // Asume que ya está encriptada
-            'created_at' => now(),
-            'updated_at' => now(),
+    {
+        // Validar los datos de entrada
+        $validator = Validator::make($request->all(), [
+            'nombre' => 'required|string|max:255',
+            'apellido' => 'required|string|max:255',
+            'telefono' => 'required|string|max:20',
+            'cedula' => 'required|string|max:10|unique:usuarios,cedula',
+            'correo_electronico' => 'required|email|unique:usuarios,correo_electronico',
+            'password' => 'required|string|min:6',
+            'rol_id' => 'required|exists:roles,id', // Validar que el rol existe
         ]);
 
-        // Asignar el rol al usuario en la base de datos del tenant (a través de la tabla usuario_rol)
-        DB::connection('tenant')->table('usuario_rol')->insert([
-            'usuario_id' => $usuarioTenantId,
-            'rol_id' => $request->rol_id,
-        ]);
-
-        // Commit de la transacción
-        DB::commit();
-
-        // Enviar correo al Owner del tenant
-        $owner = DB::connection('tenant')->table('usuarios')
-            ->join('usuario_rol', 'usuarios.id', '=', 'usuario_rol.usuario_id')
-            ->where('usuario_rol.rol_id', 2) // Asumiendo que el rol_id 2 es el Owner
-            ->select('usuarios.correo_electronico')
-            ->first();
-
-        if ($owner) {
-            Mail::to($owner->correo_electronico)->send(new WelcomeMail($usuario));
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        return response()->json(['message' => 'Usuario creado exitosamente', 'usuario' => $usuario], 201);
-    } catch (\Exception $e) {
-        // Rollback si algo falla
-        DB::rollBack();
-        Log::error('Error al crear usuario en el tenant: ' . $e->getMessage());
-        return response()->json(['errors' => 'Error al crear usuario'], 500);
+        // Iniciar la transacción en ambas bases de datos
+        DB::beginTransaction();  // Esto es para la base de datos principal
+        try {
+            // Crear el usuario en la base de datos principal
+            $usuario = $this->createUser($request);
+
+            // Asignar el rol al usuario en la base de datos principal
+            $usuario->roles()->attach($request->rol_id);
+
+            // Obtener el valor del encabezado X-Tenant
+            $tenantDatabase = $request->header('X-Tenant');
+            if (!$tenantDatabase) {
+                return response()->json(['error' => 'Nombre de la base de datos del tenant no proporcionado'], 400);
+            }
+
+            // Buscar el tenant en la tabla tenants
+            $tenants = Tenant::all();
+            $tenant = null;
+
+            foreach ($tenants as $candidate) {
+                // Acceder directamente a database_path
+                if (isset($candidate->database_path) && str_ends_with($candidate->database_path, $tenantDatabase)) {
+                    // Usar basename() para obtener solo el nombre del archivo
+                    $tenantFileName = basename($candidate->database_path);
+                    if ($tenantFileName === $tenantDatabase) {
+                        $tenant = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (!$tenant) {
+                return response()->json(['error' => 'Tenant no encontrado'], 404);
+            }
+
+            // Insertar en la tabla pivote tenant_usuario (base de datos principal)
+            $tenantId = $tenant->id;
+            DB::table('tenant_usuario')->insert([
+                'usuario_id' => $usuario->id,
+                'tenant_id' => $tenantId,
+                'rol_id' => 1,
+            ]);
+            //Hacer commit
+            DB::commit();
+            
+            // Conectar a la base de datos del tenant
+            $this->setTenantConnection($tenantDatabase);
+
+            // Verificar la conexión a la base de datos del tenant
+            if (!DB::connection('tenant')->getDatabaseName()) {
+                return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
+            }
+
+            // Crear el usuario en la base de datos del tenant
+            $usuarioTenantId = DB::connection('tenant')->table('usuarios')->insertGetId([
+                'nombre' => $usuario->nombre,
+                'apellido' => $usuario->apellido,
+                'telefono' => $usuario->telefono,
+                'cedula' => $usuario->cedula,
+                'correo_electronico' => $usuario->correo_electronico,
+                'password' => $usuario->password,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Asignar el rol en el tenant
+            DB::connection('tenant')->table('usuario_rol')->insert([
+                'usuario_id' => $usuarioTenantId,
+                'rol_id' => $request->rol_id,
+            ]);
+
+            // Si todo ha ido bien en ambas bases de datos, finalizamos la transacción
+            DB::commit();
+
+            return response()->json(['message' => 'Usuario creado exitosamente'], 201);
+        } catch (\Exception $e) {
+            // Si algo falla, hacemos rollback en ambas bases de datos
+            DB::rollBack();
+
+            Log::error('Error al registrar usuario: ' . $e->getMessage());
+            return response()->json(['error' => 'Error interno del servidor'], 500);
+        }
     }
-}
 
 
     //Funcion para crear usuario
@@ -318,18 +329,6 @@ class UsuarioController extends Controller
     }
 
 
-    //Funcion encargada del registro de owner
-    protected function handleOwnerRegistration($request, $usuario)
-    {
-        if ($request->metodo_pago == 1) {
-
-            $this->processPaypalPayment($request, $usuario);
-        } elseif ($request->metodo_pago == 2) { // Transferencia bancaria
-
-            $this->processBankTransfer($request, $usuario);
-        }
-    }
-
     //Funcion encargada del registro de empleado
     protected function handleEmpleadoRegistration($request, $usuario)
     {
@@ -343,12 +342,19 @@ class UsuarioController extends Controller
     //Funcion para procesar el pago por paypal
     protected function processPaypalPayment($request, $usuario)
     {
-        // Lógica para procesar pago por PayPal
         $paymentResult = $this->processPayment($request->id_plan, $usuario);
         if (!$paymentResult['status']) {
             throw new \Exception('Error en el proceso de pago.');
         }
-        return response()->json(['redirect_url' => $paymentResult['redirect_url']]);
+
+        // Cambiar estado del usuario a "deshabilitado"
+        $usuario->estado = 'deshabilitado';
+        $usuario->save();
+
+        return response()->json([
+            'message' => 'Redirigir a PayPal para completar el pago.',
+            'redirect_url' => $paymentResult['redirect_url'],
+        ], 200);
     }
 
     //Funcion para procesar el pago por transferencia bancaria
@@ -688,7 +694,7 @@ class UsuarioController extends Controller
     }
 
 
-    //Funcion para procesar pago por 
+    //Funcion para procesar pago por  paypal
     public function processPayment($planId, $usuario)
     {
         $plan = Planes::find($planId);
@@ -733,6 +739,11 @@ class UsuarioController extends Controller
 
                 // Crear la factura y el detalle de la factura
                 $factura = $this->crearFacturaYDetalle($usuario, $plan, 1, "Pago suscripción por PayPal");
+                $factura = $this->crearFacturaYDetalle($usuario, $plan, 1, "Pago suscripción por PayPal");
+
+                // Guardar el `order_id_paypal` en la factura
+                $factura->order_id_paypal = $orderIdPayPal;
+                $factura->save();
 
 
                 // Redirigir al usuario para aprobar el pago
@@ -801,7 +812,7 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Usuario no encontrado'], 404);
         }
 
-        // Buscar la factura pendiente del usuario
+        // Verifica el estado de la factura y realiza acciones
         $factura = Factura::where('usuario_id', $usuario->id)
             ->where('estado', 'pendiente')
             ->whereNotNull('order_id_paypal')
@@ -811,29 +822,37 @@ class UsuarioController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Factura no encontrada'], 404);
         }
 
-        // Actualizar el estado de la factura y la fecha de pago
-        $factura->estado = 'pagado';
-        $factura->fecha_pago = now();
-        $factura->save();
+        // Actualiza el estado del pago y crea el tenant
+        DB::beginTransaction();
+        try {
+            $factura->estado = 'pagado';
+            $factura->fecha_pago = now();
+            $factura->save();
 
-        // Actualizar el estado del usuario a 'habilitado'
-        $usuario->estado = 'habilitado';
-        $usuario->save();
+            // Cambia el estado del usuario
+            $usuario->estado = 'habilitado';
+            $usuario->save();
 
-        // Enviar correo al owner
-        Mail::to($usuario->correo_electronico)->send(new OwnerMail($usuario));
+            // Lógica para crear el tenant después del pago exitoso
+            $this->createTenantForOwner($usuario);
 
-        return response()->json(['status' => 'success', 'message' => 'Suscripción activada correctamente']);
+            DB::commit();
+            return response()->json(['status' => 'success', 'message' => 'Suscripción activada correctamente']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al procesar pago exitoso: ' . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Error al procesar el pago'], 500);
+        }
     }
 
 
-    //Funciones para procesar pagos con paypal
-
+    //Funcion para procesar pagos con paypal
     public function paymentCancel()
     {
         return response()->json(['status' => 'error', 'message' => 'Pago cancelado'], 400);
     }
 
+    //Funcion para procesar pagos fallidos
     public function paymentFailure()
     {
         return response()->json(['status' => 'error', 'message' => 'Error en el pago. Inténtelo de nuevo.'], 500);
@@ -977,6 +996,7 @@ class UsuarioController extends Controller
         }
     }
 
+
     // Resetear la contraseña
     public function resetPassword(Request $request)
     {
@@ -986,71 +1006,89 @@ class UsuarioController extends Controller
             'correo_electronico' => 'required|email|exists:password_reset_tokens,email',
             'password' => 'required|string|min:8|confirmed', // El campo "password_confirmation" también debe ser enviado
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
+    
         // Verificar que el token corresponde al email
         $passwordReset = DB::table('password_reset_tokens')
             ->where('token', $request->token)
             ->where('email', $request->correo_electronico)
             ->first();
-
+    
         if (!$passwordReset) {
             return response()->json(['message' => 'Token inválido o correo no coincidente.'], 400);
         }
-
+    
         DB::beginTransaction();
-
+    
         try {
             // Actualizar la contraseña del usuario en la base de datos principal
             $user = Usuario::where('correo_electronico', $request->correo_electronico)->first();
-
+    
             if (!$user) {
                 return response()->json(['message' => 'No se ha encontrado el usuario.'], 404);
             }
-
+    
             // Hashear la nueva contraseña
             $hashedPassword = Hash::make($request->password);
+    
+            // Log de la contraseña en texto plano antes de guardarla en la base de datos principal
+            Log::info('Contraseña en texto plano antes de guardar en la base de datos principal: ' . $request->password);
+    
             $user->password = $hashedPassword;
             $user->save();
-
+    
+            // Log de la contraseña hasheada guardada en la base de datos principal
+            Log::info('Contraseña hasheada guardada en la base de datos principal para el usuario: ' . $user->correo_electronico);
+    
+            // Eliminar el token una vez la contraseña ha sido reseteada exitosamente
+            DB::table('password_reset_tokens')->where('email', $request->correo_electronico)->delete();
+            
+            DB::commit();
+    
             // Obtener el tenant asociado al usuario
             $tenantRelation = DB::table('tenant_usuario')->where('usuario_id', $user->id)->first();
-
+    
             if ($tenantRelation) {
                 // Configurar la conexión al tenant
                 $tenant = Tenant::find($tenantRelation->tenant_id);
-                if (!$tenant) {
-                    throw new \Exception('No se encontró el tenant asociado.');
+                if (!$tenant || empty($tenant->database_path)) {
+                    throw new \Exception('No se encontró el tenant asociado o la ruta de la base de datos.');
                 }
-
-                $databasePath = $tenant->data['database_path'];
+    
+                // Obtener la ruta absoluta de la base de datos
+                $databasePath = realpath($tenant->database_path);
+                if (!$databasePath) {
+                    throw new \Exception('La ruta de la base de datos no es válida: ' . $tenant->database_path);
+                }
+    
                 config(['database.connections.tenant' => [
                     'driver' => 'sqlite',
                     'database' => $databasePath,
                     'prefix' => '',
                     'foreign_key_constraints' => true,
                 ]]);
-
+    
                 // Cambiar la conexión al tenant
                 DB::purge('tenant');
                 DB::reconnect('tenant');
-
+    
+                // Log de la contraseña en texto plano antes de guardarla en la base de datos del tenant
+                Log::info('Contraseña en texto plano antes de guardar en el tenant: ' . $request->password);
+    
                 // Actualizar la contraseña del usuario en la base de datos del tenant
                 DB::connection('tenant')->table('usuarios')
                     ->where('correo_electronico', $request->correo_electronico)
                     ->update(['password' => $hashedPassword]);
-
-                Log::info('Contraseña actualizada en el tenant: ' . $databasePath);
+    
+                // Log de la contraseña hasheada guardada en el tenant
+                Log::info('Contraseña hasheada guardada en el tenant: ' . $databasePath . ' para el usuario: ' . $user->correo_electronico);
             }
-
-            // Eliminar el token una vez la contraseña ha sido reseteada exitosamente
-            DB::table('password_reset_tokens')->where('email', $request->correo_electronico)->delete();
-
+    
             DB::commit();
-
+    
             return response()->json(['message' => 'Su contraseña ha sido cambiada exitosamente.'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1104,53 +1142,53 @@ class UsuarioController extends Controller
         }
     }
 
-    // Aprobación de demo
+    //Aprobar demo
     public function approveDemo(Request $request)
     {
         // Verificar si el usuario tiene el permiso para aprobar demos
         if (!$this->verificarPermiso('Aprobar demo')) {
             return response()->json(['error' => 'No tienes permiso para aprobar demos'], 403);
         }
-
+    
         // Validar el ID de la demo a aprobar
         $validator = Validator::make($request->all(), [
             'id' => 'required|integer|exists:demo,id',
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
+    
         // Contar la cantidad de demos activas
         $demoCount = Demo::where('isActive', true)->count();
-
+    
         // Limitar la cantidad de demos activas
         $cantidadMaximaDemos = 5;
         if ($demoCount >= $cantidadMaximaDemos) {
             return response()->json(['message' => 'No se pueden aprobar más demos.'], 400);
         }
-
+    
         DB::beginTransaction();
-
+    
         try {
             // Pedir el ID de la demo a aprobar
             $demoRequest = Demo::findOrFail($request->id);
-
+    
             // Verificar que la demo aún no ha sido aprobada
             if ($demoRequest->isActive) {
                 return response()->json(['message' => 'La demo ya ha sido aprobada.'], 400);
             }
-
+    
             // Generar datos predeterminados para el usuario demo
             $nombreDemo = 'Demo ' . Str::random(5);
             $apellidoDemo = 'User';
             $telefonoDemo = '0000000000';
             $cedulaDemo = Str::random(10);
-
+    
             // Generar la contraseña en texto plano
             $passwordPlano = Str::random(8);
-
-            // Crear el usuario demo en la tabla usuarios con la contraseña hasheada
+    
+            // Crear el usuario demo en la tabla usuarios con la contraseña en texto plano
             $usuarioDemo = Usuario::create([
                 'nombre' => $nombreDemo,
                 'apellido' => $apellidoDemo,
@@ -1158,21 +1196,31 @@ class UsuarioController extends Controller
                 'cedula' => $cedulaDemo,
                 'correo_electronico' => $demoRequest->email,
                 'password' => $passwordPlano,
-                'rol' => 'demo',
             ]);
-
+    
+            // Asignar el rol 'Demo' al usuario en la base de datos principal
+            $rolDemo = Rol::where('nombre', 'Demo')->first();
+            if ($rolDemo) {
+                $usuarioDemo->roles()->attach($rolDemo->id);
+            } else {
+                throw new \Exception('Rol "Demo" no encontrado.');
+            }
+    
+            // Crear el tenant para el usuario demo
+            $this->createTenantForOwner($usuarioDemo);
+    
             // Actualizar la tabla demo con el ID del usuario, marcar como activa y establecer la fecha de expiración
             $demoRequest->update([
                 'usuario_id' => $usuarioDemo->id,
                 'isActive' => true,
                 'demo_expiry_date' => now()->addDays(5), // Establecer la fecha de expiración a 5 días a partir de ahora
             ]);
-
+    
             // Enviar el correo con la contraseña en texto plano
             Mail::to($demoRequest->email)->send(new DemoMail($usuarioDemo, $passwordPlano));
-
+    
             DB::commit();
-
+    
             return response()->json(['message' => 'Demo aprobada exitosamente', 'usuario' => $usuarioDemo], 201);
         } catch (\Exception $e) {
             DB::rollBack();

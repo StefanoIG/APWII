@@ -24,6 +24,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'Aprobar demo',
             'Puede crear productos',
             'Negar demo',
+            'Puede ver productos',
             'Puede ver retornos',
             'Puede actualizar etiquetas', 
             'Puede ver etiquetas',
@@ -69,6 +70,7 @@ class RolesAndPermissionsSeeder extends Seeder
         // Permisos globales que se repiten entre roles
         $permisosGlobales = [
             'Puede crear productos',
+            'Puede ver productos',
             'Puede actualizar productos',
             'Puede crear lotes',
             'Puede actualizar lotes',
@@ -79,9 +81,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'Puede actualizar etiquetas',
             'Puede ver etiquetas',
             'Puede asignar etiquetas',
-            'Puede crear sitios',
-            'Puede actualizar sitios',
-            'Puede borrar sitios',
             'Puede crear proveedores',
             'Puede actualizar proveedores',
             'Puede borrar proveedores',
@@ -121,6 +120,7 @@ class RolesAndPermissionsSeeder extends Seeder
                         'Puede actualizar sitios',
                         'Puede eliminar productos',
                         'Puede actualizar productos',
+                        'Puede ver informacion de todos los sitios',
                         'Puede crear productos',
                         'Puede ver comprobantes',
                         'Puede ver retornos',
@@ -172,9 +172,31 @@ class RolesAndPermissionsSeeder extends Seeder
                     break;
 
                 case 'Demo':
-                    $this->asignarPermisos($rol, array_merge($permisosGlobales, [
+                    //Asignar permisos especificos para el rol de demo
+                    $this -> asignarPermisos($rol, [
                         'Puede crear Lotes',
-                    ]));
+                        'Puede ver productos',
+                        'Puede registrar usuarios',
+                        'Puede actualizar empleados de sus sitios',
+                        'Puede eliminar empleados de sus sitios',
+                        'Puede crear proveedores',
+                        'Puede ver pagos paginados',
+                        'Puede actualizar lotes',
+                        'Puede eliminar lotes',
+                        'Puede crear sitios',
+                        'Puede eliminar sitios',
+                        'Puede actualizar sitios',
+                        'Puede eliminar productos',
+                        'Puede actualizar productos',
+                        'Puede ver informacion de todos los sitios',
+                        'Puede crear productos',
+                        'Puede ver comprobantes',
+                        'Puede ver retornos',
+                        'Puede ver etiquetas',
+                        'Puede crear etiquetas',
+                        'Puede actualizar etiquetas', 
+                        'Puede borrar etiquetas',
+                    ]);
                     break;
             }
         }
