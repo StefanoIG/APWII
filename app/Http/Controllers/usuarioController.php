@@ -1049,7 +1049,6 @@ class UsuarioController extends Controller
             DB::commit();
     
             // Obtener el tenant asociado al usuario
-            dd($user);
             $tenantRelation = DB::table('tenant_usuario')->where('usuario_id', $user->id)->first();
     
             if ($tenantRelation) {
