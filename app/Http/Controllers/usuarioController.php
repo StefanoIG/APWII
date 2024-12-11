@@ -996,6 +996,7 @@ class UsuarioController extends Controller
         }
     }
 
+
     // Resetear la contraseña
     public function resetPassword(Request $request)
     {
@@ -1005,71 +1006,90 @@ class UsuarioController extends Controller
             'correo_electronico' => 'required|email|exists:password_reset_tokens,email',
             'password' => 'required|string|min:8|confirmed', // El campo "password_confirmation" también debe ser enviado
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
+    
         // Verificar que el token corresponde al email
         $passwordReset = DB::table('password_reset_tokens')
             ->where('token', $request->token)
             ->where('email', $request->correo_electronico)
             ->first();
-
+    
         if (!$passwordReset) {
             return response()->json(['message' => 'Token inválido o correo no coincidente.'], 400);
         }
-
+    
         DB::beginTransaction();
-
+    
         try {
             // Actualizar la contraseña del usuario en la base de datos principal
             $user = Usuario::where('correo_electronico', $request->correo_electronico)->first();
-
+    
             if (!$user) {
                 return response()->json(['message' => 'No se ha encontrado el usuario.'], 404);
             }
-
+    
             // Hashear la nueva contraseña
             $hashedPassword = Hash::make($request->password);
+    
+            // Log de la contraseña en texto plano antes de guardarla en la base de datos principal
+            Log::info('Contraseña en texto plano antes de guardar en la base de datos principal: ' . $request->password);
+    
             $user->password = $hashedPassword;
             $user->save();
-
+    
+            // Log de la contraseña hasheada guardada en la base de datos principal
+            Log::info('Contraseña hasheada guardada en la base de datos principal para el usuario: ' . $user->correo_electronico);
+    
+            // Eliminar el token una vez la contraseña ha sido reseteada exitosamente
+            DB::table('password_reset_tokens')->where('email', $request->correo_electronico)->delete();
+            
+            DB::commit();
+    
             // Obtener el tenant asociado al usuario
+            dd($user);
             $tenantRelation = DB::table('tenant_usuario')->where('usuario_id', $user->id)->first();
-
+    
             if ($tenantRelation) {
                 // Configurar la conexión al tenant
                 $tenant = Tenant::find($tenantRelation->tenant_id);
-                if (!$tenant) {
-                    throw new \Exception('No se encontró el tenant asociado.');
+                if (!$tenant || empty($tenant->database_path)) {
+                    throw new \Exception('No se encontró el tenant asociado o la ruta de la base de datos.');
                 }
-
-                $databasePath = $tenant->data['database_path'];
+    
+                // Obtener la ruta absoluta de la base de datos
+                $databasePath = realpath($tenant->database_path);
+                if (!$databasePath) {
+                    throw new \Exception('La ruta de la base de datos no es válida: ' . $tenant->database_path);
+                }
+    
                 config(['database.connections.tenant' => [
                     'driver' => 'sqlite',
                     'database' => $databasePath,
                     'prefix' => '',
                     'foreign_key_constraints' => true,
                 ]]);
-
+    
                 // Cambiar la conexión al tenant
                 DB::purge('tenant');
                 DB::reconnect('tenant');
-
+    
+                // Log de la contraseña en texto plano antes de guardarla en la base de datos del tenant
+                Log::info('Contraseña en texto plano antes de guardar en el tenant: ' . $request->password);
+    
                 // Actualizar la contraseña del usuario en la base de datos del tenant
                 DB::connection('tenant')->table('usuarios')
                     ->where('correo_electronico', $request->correo_electronico)
                     ->update(['password' => $hashedPassword]);
-
-                Log::info('Contraseña actualizada en el tenant: ' . $databasePath);
+    
+                // Log de la contraseña hasheada guardada en el tenant
+                Log::info('Contraseña hasheada guardada en el tenant: ' . $databasePath . ' para el usuario: ' . $user->correo_electronico);
             }
-
-            // Eliminar el token una vez la contraseña ha sido reseteada exitosamente
-            DB::table('password_reset_tokens')->where('email', $request->correo_electronico)->delete();
-
+    
             DB::commit();
-
+    
             return response()->json(['message' => 'Su contraseña ha sido cambiada exitosamente.'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -1123,53 +1143,53 @@ class UsuarioController extends Controller
         }
     }
 
-    // Aprobación de demo
+    //Aprobar demo
     public function approveDemo(Request $request)
     {
         // Verificar si el usuario tiene el permiso para aprobar demos
         if (!$this->verificarPermiso('Aprobar demo')) {
             return response()->json(['error' => 'No tienes permiso para aprobar demos'], 403);
         }
-
+    
         // Validar el ID de la demo a aprobar
         $validator = Validator::make($request->all(), [
             'id' => 'required|integer|exists:demo,id',
         ]);
-
+    
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
+    
         // Contar la cantidad de demos activas
         $demoCount = Demo::where('isActive', true)->count();
-
+    
         // Limitar la cantidad de demos activas
         $cantidadMaximaDemos = 5;
         if ($demoCount >= $cantidadMaximaDemos) {
             return response()->json(['message' => 'No se pueden aprobar más demos.'], 400);
         }
-
+    
         DB::beginTransaction();
-
+    
         try {
             // Pedir el ID de la demo a aprobar
             $demoRequest = Demo::findOrFail($request->id);
-
+    
             // Verificar que la demo aún no ha sido aprobada
             if ($demoRequest->isActive) {
                 return response()->json(['message' => 'La demo ya ha sido aprobada.'], 400);
             }
-
+    
             // Generar datos predeterminados para el usuario demo
             $nombreDemo = 'Demo ' . Str::random(5);
             $apellidoDemo = 'User';
             $telefonoDemo = '0000000000';
             $cedulaDemo = Str::random(10);
-
+    
             // Generar la contraseña en texto plano
             $passwordPlano = Str::random(8);
-
-            // Crear el usuario demo en la tabla usuarios con la contraseña hasheada
+    
+            // Crear el usuario demo en la tabla usuarios con la contraseña en texto plano
             $usuarioDemo = Usuario::create([
                 'nombre' => $nombreDemo,
                 'apellido' => $apellidoDemo,
@@ -1177,21 +1197,31 @@ class UsuarioController extends Controller
                 'cedula' => $cedulaDemo,
                 'correo_electronico' => $demoRequest->email,
                 'password' => $passwordPlano,
-                'rol' => 'demo',
             ]);
-
+    
+            // Asignar el rol 'Demo' al usuario en la base de datos principal
+            $rolDemo = Rol::where('nombre', 'Demo')->first();
+            if ($rolDemo) {
+                $usuarioDemo->roles()->attach($rolDemo->id);
+            } else {
+                throw new \Exception('Rol "Demo" no encontrado.');
+            }
+    
+            // Crear el tenant para el usuario demo
+            $this->createTenantForOwner($usuarioDemo);
+    
             // Actualizar la tabla demo con el ID del usuario, marcar como activa y establecer la fecha de expiración
             $demoRequest->update([
                 'usuario_id' => $usuarioDemo->id,
                 'isActive' => true,
                 'demo_expiry_date' => now()->addDays(5), // Establecer la fecha de expiración a 5 días a partir de ahora
             ]);
-
+    
             // Enviar el correo con la contraseña en texto plano
             Mail::to($demoRequest->email)->send(new DemoMail($usuarioDemo, $passwordPlano));
-
+    
             DB::commit();
-
+    
             return response()->json(['message' => 'Demo aprobada exitosamente', 'usuario' => $usuarioDemo], 201);
         } catch (\Exception $e) {
             DB::rollBack();
