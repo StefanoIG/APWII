@@ -72,19 +72,16 @@ class ProveedorController extends Controller
     {
         $this->setTenantConnection($request);
 
-        $user = Auth::user();
+        //if (!$this->verificarPermiso('Puede ver proveedores')) {
+            //return response()->json(['error' => 'No tienes permiso para ver proveedores'], 403);
+        //}
 
-        if ($this->verificarRol('Admin')) {
-            $proveedores = DB::connection('tenant')->table('proveedor')->paginate(10);
-        } elseif ($this->verificarRol('Owner')) {
-            $proveedores = DB::connection('tenant')->table('proveedor')->where('created_by', $user->id)->get();
-            //Si el owner no ha creado proveedores, 
-        } else {
-            return response()->json(['error' => 'No tienes permiso para ver proveedores'], 403);
-        }
+        $proveedores = DB::connection('tenant')->table('proveedor')->get();
 
-        return response()->json($proveedores);
+        return response()->json($proveedores, 200);
     }
+
+
 
     /**
      * Crear un proveedor.
@@ -105,11 +102,14 @@ class ProveedorController extends Controller
             'Cuidad' => 'required|string|max:255',
         ]);
 
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
         try {
+            Log::info('Insertando proveedor en la base de datos del tenant.');
+
             $proveedorId = DB::connection('tenant')->table('proveedor')->insertGetId([
                 'nombre' => $request->nombre,
                 'direccion' => $request->direccion,
@@ -117,6 +117,8 @@ class ProveedorController extends Controller
                 'email' => $request->email,
                 'Cuidad' => $request->Cuidad,
             ]);
+
+            dd($proveedorId);
 
             $proveedor = DB::connection('tenant')->table('proveedor')->find($proveedorId);
 
