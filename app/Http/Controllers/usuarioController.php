@@ -107,7 +107,12 @@ class UsuarioController extends Controller
         if ($this->verificarRol('Owner')) {
             // Si es Owner, obtener usuarios paginados
             $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10); // Cambia 10 por el número de resultados por página deseados
-        } else {
+        } 
+        if ($this->verificarRol('Admin')) {
+            // Si es Admin, obtener usuarios paginados de la bd master
+            $usuarios = Usuario::paginate(10); // Cambia 10 por el número de resultados por página deseados
+        } 
+        else {
             // Si es un empleado, solo puede ver su propia información
             $usuarios = DB::connection('tenant')->table('usuarios')->where('id', $user->id)->get();
         }
