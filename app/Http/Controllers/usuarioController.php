@@ -102,26 +102,18 @@ class UsuarioController extends Controller
     {
         // Obtener el usuario autenticado
         $user = Auth::user();
-
-        // Verificar el rol del usuario
         if ($this->verificarRol('Owner')) {
             // Si es Owner, obtener usuarios paginados
-            $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10); // Cambia 10 por el número de resultados por página deseados
-        }
-        if ($this->verificarRol('Admin')) {
-            // Si es Admin, obtener usuarios paginados de la bd master
-            $usuarios = Usuario::paginate(10); // Cambia 10 por el número de resultados por página deseados
+            $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10);
         } else {
             // Si es un empleado, solo puede ver su propia información
             $usuarios = DB::connection('tenant')->table('usuarios')->where('id', $user->id)->get();
         }
-
-        return response()->json($usuarios);
     }
 
     //funcion index para admin
     public function indexAdmins(Request $request)
-    {  
+    {
         //autenticar usuario
         $user = Auth::user();
 
@@ -129,7 +121,7 @@ class UsuarioController extends Controller
         if ($this->verificarRol('Admin')) {
             //si es admin, obtener usuarios paginados
             $usuarios = Usuario::paginate(10);
-        } 
+        }
         return response()->json($usuarios);
     }
 
