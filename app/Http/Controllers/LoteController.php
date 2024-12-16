@@ -210,7 +210,9 @@ class LoteController extends Controller
 
         try {
             $lote = Lote::findOrFail($id_lote);
-
+            //log encontrado
+            Log::info('Lote encontrado: ' . json_encode($lote));
+            
             if (!$lote->codigo_lote) {
                 return response()->json(['error' => 'El lote no tiene un código de barras asignado.'], 404);
             }
