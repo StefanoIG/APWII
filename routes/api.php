@@ -28,7 +28,6 @@ use App\Http\Controllers\ExportarController;
 Route::post('/planes', [PlanController::class, 'store']);
 Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
 Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
-Route::get('/usuarios/all', [UsuarioController::class, 'indexAdmins']);
 
 
 //rutas de paypal publicas
@@ -41,7 +40,8 @@ Route::get('/planes', [PlanController::class, 'index']);
 
 //rutas chatbot
 Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
-
+Route::post('/question', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
+Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
 
 
 //rutas de autenticación
@@ -55,6 +55,7 @@ Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
 //requets demo
 Route::post('/demo', [UsuarioController::class, 'requestDemo']);
 
+Route::get('/usuarios/all', [UsuarioController::class, 'indexAdmins']);
 
 
 
@@ -160,9 +161,7 @@ Route::middleware('TenantAuthPermissions')->group(function () {
 
 //rutas protegidas (Bd Master)
 Route::middleware('auth:api')->group(function () {
-    //rutas chatbot
-    Route::post('/question', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
-    Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
+    
 
 
     //rutas de demo
