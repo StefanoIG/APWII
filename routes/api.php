@@ -161,7 +161,7 @@ Route::middleware('TenantAuthPermissions')->group(function () {
 //rutas protegidas (Bd Master)
 Route::middleware('auth:api')->group(function () {
     //rutas chatbot
-    Route::post('/questions', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
+    Route::post('/question', [ChatBotController::class, 'store']); // Ruta para almacenar preguntas y respuestas
     Route::get('/questions', [ChatBotController::class, 'getAllQuestions']); // Ruta para obtener todas las preguntas con paginación
 
 
