@@ -189,4 +189,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/metodos-pago/{id}', [MetodoPagoController::class, 'show']);
     Route::put('/metodos-pago/{id}', [MetodoPagoController::class, 'update']);
     Route::delete('/metodos-pago/{id}', [MetodoPagoController::class, 'destroy']);
+
+    //Funcion de admin
+    
+    Route::get('/usuarios/all', [UsuarioController::class, 'indexAdmins']);
 });

@@ -120,6 +120,23 @@ class UsuarioController extends Controller
         return response()->json($usuarios);
     }
 
+    //funcion index para admin
+    public function indexAdmins(Request $request)
+    {
+        // Obtener el usuario autenticado
+        $user = Auth::user();
+
+       
+        if ($this->verificarRol('Admin')) {
+            // Si es Admin, obtener usuarios paginados de la bd master
+            $usuarios = Usuario::paginate(10); // Cambia 10 por el número de resultados por página deseados
+        } 
+       
+
+        return response()->json($usuarios);
+    }
+
+
     //Funcion de show
     public function show(Request $request, $id)
     {
