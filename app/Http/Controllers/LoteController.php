@@ -142,7 +142,6 @@ class LoteController extends Controller
             $lote->fecha_fabricacion = $validatedData['fecha_fabricacion'] ?? null;
             $lote->cantidad = $validatedData['cantidad'];
             $lote->expirable = $validatedData['expirable'];
-            $lote->isActive = $validatedData['isActive'];
             $lote->id_sitio = $validatedData['id_sitio'];
 
             // Asignar fecha_caducidad solo si expirable es true
@@ -246,7 +245,6 @@ class LoteController extends Controller
             'fecha_caducidad' => 'sometimes|date',
             'cantidad' => 'sometimes|integer',
             'expirable' => 'sometimes|boolean',
-            'isActive' => 'sometimes|boolean',
             'id_sitio' => 'sometimes|exists:sitio,id_sitio'
         ]);
 
