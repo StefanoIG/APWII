@@ -124,7 +124,6 @@ class LoteController extends Controller
             'fecha_caducidad' => 'nullable|date',
             'cantidad' => 'required|integer',
             'expirable' => 'required|boolean',
-            'isActive' => 'required|boolean',
             'id_sitio' => 'required|exists:sitio,id_sitio'
         ]);
 
