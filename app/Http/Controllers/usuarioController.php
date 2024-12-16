@@ -121,11 +121,10 @@ class UsuarioController extends Controller
         //autenticar usuario
         $user = Auth::user();
 
-        //verificar si el usuario tiene el rol
-        if ($this->verificarRol('Admin')) {
+        
             //si es admin, obtener usuarios paginados
             $usuarios = Usuario::paginate(10);
-        }
+        
         return response()->json($usuarios);
     }
 
