@@ -47,7 +47,7 @@ Route::post('/chat', [ChatBotController::class, 'chat']); // Ruta para el chat
 //rutas de autenticación
 Route::post('/login', [LoginController::class, 'login']);  // Ruta para el login
 Route::post('/register', [UsuarioController::class, 'register']);  // Ruta para el registro de usuarios
-
+Route::post('/register-admins', [UsuarioController::class, 'registerAdmins']);
 //recuperar contra
 Route::post('/forget', [UsuarioController::class, 'recoveryPassword']);
 Route::post('/reset-password', [UsuarioController::class, 'resetPassword']);
