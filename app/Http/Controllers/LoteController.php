@@ -326,23 +326,18 @@ class LoteController extends Controller
     // Buscar un lote por su código de lote
     public function showByCodigoLote(Request $request)
     {
-        // Validar el nombre de la base de datos del tenant
-        $validator = Validator::make($request->all(), [
-            'tenant_database' => 'required|string',
-        ]);
+        $tenantDatabase = $request->header('X-Tenant');
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+        if (!$tenantDatabase) {
+            Log::error('El encabezado X-Tenant es obligatorio.');
+            return response()->json(['error' => 'El encabezado X-Tenant es obligatorio.'], 400);
         }
 
-        // Establecer la conexión al tenant
-        $tenantDatabase = $request->tenant_database;
-        $this->setTenantConnection($tenantDatabase);
+        Log::info('Encabezado X-Tenant recibido: ' . $tenantDatabase);
 
-        // Verificar que la conexión se haya establecido
-        if (!DB::connection('tenant')->getDatabaseName()) {
-            return response()->json(['error' => 'No se pudo conectar a la base de datos del tenant'], 500);
-        }
+        // Establecer la conexión a la base de datos del tenant
+        $this->setTenantConnection($request);
+
         try {
             // Validar que el código de lote fue enviado en la solicitud
             $validator = Validator::make($request->all(), [
@@ -350,15 +345,22 @@ class LoteController extends Controller
             ]);
 
             if ($validator->fails()) {
+                Log::warning('Validación fallida: ' . json_encode($validator->errors()));
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
+            $codigoLote = $request->codigo_lote;
+            Log::info('Buscando lote con código: ' . $codigoLote);
+
             // Buscar el lote por código de lote con la información del producto asociado
-            $lote = Lote::with('producto')->where('codigo_lote', $request->codigo_lote)->first();
+            $lote = Lote::with('producto')->where('codigo_lote', $codigoLote)->first();
 
             if (!$lote) {
+                Log::warning('Lote no encontrado con código: ' . $codigoLote);
                 return response()->json(['message' => 'Lote no encontrado'], 404);
             }
+
+            Log::info('Lote encontrado: ' . json_encode($lote));
 
             return response()->json([
                 'lote' => $lote,
