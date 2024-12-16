@@ -102,13 +102,17 @@ class UsuarioController extends Controller
     {
         // Obtener el usuario autenticado
         $user = Auth::user();
+
+        // Verificar el rol del usuario
         if ($this->verificarRol('Owner')) {
             // Si es Owner, obtener usuarios paginados
-            $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10);
+            $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10); // Cambia 10 por el número de resultados por página deseados
         } else {
             // Si es un empleado, solo puede ver su propia información
             $usuarios = DB::connection('tenant')->table('usuarios')->where('id', $user->id)->get();
         }
+
+        return response()->json($usuarios);
     }
 
     //funcion index para admin
