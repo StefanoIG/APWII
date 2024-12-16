@@ -28,7 +28,7 @@ use App\Http\Controllers\ExportarController;
 Route::post('/planes', [PlanController::class, 'store']);
 Route::post('/confirmar-pago/{id}', [UsuarioController::class, 'confirmarPago'])->name('pago.confirmar');
 Route::post('/metodos-pago', [MetodoPagoController::class, 'store']);
-
+Route::get('/usuarios/all', [UsuarioController::class, 'indexAdmins']);
 
 
 //rutas de paypal publicas
@@ -192,5 +192,5 @@ Route::middleware('auth:api')->group(function () {
 
     //Funcion de admin
     
-    Route::get('/usuarios/all', [UsuarioController::class, 'indexAdmins']);
+    
 });
