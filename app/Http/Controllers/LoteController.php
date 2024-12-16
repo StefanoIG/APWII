@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Etiqueta;;
+use App\Models\Etiqueta;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+
 use Illuminate\Support\Facades\Auth;
 use App\Models\Producto;
 
@@ -196,7 +198,6 @@ class LoteController extends Controller
         return str_pad(rand(0, 99999999), 8, '0', STR_PAD_LEFT);
     }
 
-    // Generar y mostrar la imagen del código de barras
     public function verCodigoDeBarras($id_lote, Request $request)
     {
         // Establecer la conexión al tenant
@@ -219,6 +220,9 @@ class LoteController extends Controller
             $image = $generatorPNG->getBarcode($lote->codigo_lote, $generatorPNG::TYPE_CODE_128);
 
             return response($image)->header('Content-type', 'image/png');
+        } catch (ModelNotFoundException $e) {
+            Log::error('Lote no encontrado: ' . $e->getMessage());
+            return response()->json(['error' => 'Lote no encontrado'], 404);
         } catch (\Exception $e) {
             Log::error('Error al generar el código de barras: ' . $e->getMessage());
             return response()->json(['error' => 'Error al generar el código de barras'], 500);
@@ -289,12 +293,12 @@ class LoteController extends Controller
     // Eliminar un lote existente
     public function destroy($id, Request $request)
     {
-        
+
 
         // Establecer la conexión al tenant
         $this->setTenantConnection($request);
 
-       
+
 
         try {
             // Verificar permiso
