@@ -107,12 +107,11 @@ class UsuarioController extends Controller
         if ($this->verificarRol('Owner')) {
             // Si es Owner, obtener usuarios paginados
             $usuarios = DB::connection('tenant')->table('usuarios')->paginate(10); // Cambia 10 por el número de resultados por página deseados
-        } 
+        }
         if ($this->verificarRol('Admin')) {
             // Si es Admin, obtener usuarios paginados de la bd master
             $usuarios = Usuario::paginate(10); // Cambia 10 por el número de resultados por página deseados
-        } 
-        else {
+        } else {
             // Si es un empleado, solo puede ver su propia información
             $usuarios = DB::connection('tenant')->table('usuarios')->where('id', $user->id)->get();
         }
@@ -123,15 +122,9 @@ class UsuarioController extends Controller
     //funcion index para admin
     public function indexAdmins(Request $request)
     {
-        // Obtener el usuario autenticado
-        $user = Auth::user();
 
-       
-        if ($this->verificarRol('Admin')) {
-            // Si es Admin, obtener usuarios paginados de la bd master
-            $usuarios = Usuario::paginate(10); // Cambia 10 por el número de resultados por página deseados
-        } 
-       
+        $usuarios = Usuario::paginate(10); // Cambia 10 por el número de resultados por página deseados
+
 
         return response()->json($usuarios);
     }
@@ -234,7 +227,8 @@ class UsuarioController extends Controller
     }
 
     //Funcion de registro para administradores
-    public function registerAdmins(Request $request){
+    public function registerAdmins(Request $request)
+    {
         // Validación de datos
         $validator = Validator::make($request->all(), [
             'nombre' => 'required|string|max:255',
@@ -268,7 +262,7 @@ class UsuarioController extends Controller
         }
     }
 
-    
+
 
     //Funcion para crear un usuario tipo empleado
     public function registerForEmployee(Request $request)
@@ -332,7 +326,7 @@ class UsuarioController extends Controller
             ]);
             //Hacer commit
             DB::commit();
-            
+
             // Conectar a la base de datos del tenant
             $this->setTenantConnection($tenantDatabase);
 
